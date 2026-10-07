@@ -1,0 +1,8 @@
+{
+  "name": "Minha Loja - Gestão/PDV",
+  "description": "Sistema completo, moderno e offline para gestão de pequenas lojas, vendas por Instagram, WhatsApp e balcão, com controle de estoque, PDV e financeiro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

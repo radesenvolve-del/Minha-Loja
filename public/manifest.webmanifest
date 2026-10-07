@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "Minha Loja - Gestão & PDV",
+  "short_name": "Minha Loja",
+  "description": "Sistema completo, moderno e offline para gestão de pequenas lojas, vendas por Instagram, WhatsApp e balcão, com controle de estoque, PDV e financeiro.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#18181b",
+  "background_color": "#09090b",
+  "categories": ["business", "finance", "productivity", "shopping"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

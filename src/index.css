@@ -1,0 +1,469 @@
+@import "tailwindcss";
+
+@layer components {
+  /* ==========================================================================
+     SOPHISTICATED LUXURY ATELIER BUTTONS / ICONS (GOLD, SILVER / NUDE)
+     Refined tactile surfaces, micro-specular insets, and crisp hairline borders.
+     Zero generic AI slop: no plastic capsules, no neon pills.
+     ========================================================================== */
+
+  /* 1. Champagne / Imperial Gold - Signature Primary CTA */
+  .btn-gold {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.025em;
+    border-radius: 0.75rem;
+    padding: 0.55rem 1.15rem;
+    background: linear-gradient(180deg, #fdf4dc 0%, #d8b059 40%, #af8323 100%);
+    color: #1a1306;
+    border: 1px solid #c99f3b;
+    box-shadow: 
+      0 1px 2px rgba(26, 19, 6, 0.12),
+      0 2px 5px rgba(175, 131, 35, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.75),
+      inset 0 -1px 0 rgba(110, 78, 10, 0.35);
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.25;
+    user-select: none;
+  }
+  .btn-gold:hover {
+    filter: brightness(1.05) contrast(1.02);
+    transform: translateY(-1px);
+    box-shadow: 
+      0 3px 8px rgba(175, 131, 35, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 0 rgba(110, 78, 10, 0.45);
+  }
+  .btn-gold:active {
+    filter: brightness(0.95);
+    transform: translateY(0px) scale(0.98);
+    box-shadow: 
+      0 1px 1px rgba(26, 19, 6, 0.1),
+      inset 0 1px 2px rgba(90, 60, 5, 0.45);
+  }
+
+  /* 2. Platinum / Sterling Silver - Noble Secondary Action */
+  .btn-silver {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+    border-radius: 0.75rem;
+    padding: 0.55rem 1.1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #eceff4 50%, #d0d7e2 100%);
+    color: #1e242d;
+    border: 1px solid #bdc6d4;
+    box-shadow: 
+      0 1px 2px rgba(30, 36, 45, 0.08),
+      0 2px 4px rgba(200, 208, 220, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      inset 0 -1px 0 rgba(140, 150, 165, 0.25);
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.25;
+    user-select: none;
+  }
+  :is(.dark .btn-silver) {
+    background: linear-gradient(180deg, #3d434d 0%, #2b3038 50%, #22262d 100%);
+    color: #f1f5f9;
+    border-color: #4f5663;
+    box-shadow: 
+      0 1px 2px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+  }
+  .btn-silver:hover {
+    filter: brightness(1.04);
+    transform: translateY(-1px);
+    box-shadow: 
+      0 3px 6px rgba(100, 115, 135, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 1);
+  }
+  :is(.dark .btn-silver:hover) {
+    filter: brightness(1.12);
+    border-color: #636c7c;
+  }
+  .btn-silver:active {
+    filter: brightness(0.96);
+    transform: translateY(0px) scale(0.98);
+  }
+
+  /* 3. Warm Nude / Porcelain Neutral Button */
+  .btn-neutral, .btn-nude {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.95rem;
+    background: #fffdf9;
+    color: #2c241e;
+    border: 1px solid #e8dfc8;
+    box-shadow: 0 1px 2px rgba(44, 36, 30, 0.04);
+    transition: all 0.16s ease;
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.25;
+    user-select: none;
+  }
+  :is(.dark .btn-neutral), :is(.dark .btn-nude) {
+    background: #231d18;
+    color: #ede4d8;
+    border-color: #3d3329;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+  .btn-neutral:hover, .btn-nude:hover {
+    background: #f7f2ea;
+    border-color: #d8cbb5;
+    color: #1a140f;
+    transform: translateY(-0.5px);
+  }
+  :is(.dark .btn-neutral:hover), :is(.dark .btn-nude:hover) {
+    background: #2d251f;
+    border-color: #524436;
+    color: #ffffff;
+  }
+  .btn-neutral:active, .btn-nude:active {
+    transform: translateY(0px) scale(0.98);
+  }
+
+  /* 3b. Frosted Platinum Glass Button */
+  .btn-platinum {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.95rem;
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(8px);
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 1px 3px rgba(100, 116, 139, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    transition: all 0.16s ease;
+    cursor: pointer;
+  }
+  :is(.dark .btn-platinum) {
+    background: rgba(43, 36, 31, 0.65);
+    color: #e2e8f0;
+    border-color: #475569;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .btn-platinum:hover {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: #94a3b8;
+    color: #0f172a;
+    transform: translateY(-0.5px);
+  }
+  :is(.dark .btn-platinum:hover) {
+    background: rgba(55, 46, 40, 0.85);
+    border-color: #64748b;
+    color: #ffffff;
+  }
+  .btn-platinum:active {
+    transform: translateY(0px) scale(0.98);
+  }
+
+  /* 4. Emerald / Gold - POS Finalization */
+  .btn-emerald {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+    border-radius: 0.75rem;
+    padding: 0.55rem 1.15rem;
+    background: linear-gradient(180deg, #138760 0%, #075f42 100%);
+    color: #ffffff;
+    border: 1px solid #149c70;
+    box-shadow: 
+      0 1px 2px rgba(7, 95, 66, 0.22),
+      0 2px 4px rgba(7, 95, 66, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -1px 0 rgba(3, 45, 31, 0.4);
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.25;
+    user-select: none;
+  }
+  .btn-emerald:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(7, 95, 66, 0.35);
+  }
+  .btn-emerald:active {
+    filter: brightness(0.94);
+    transform: translateY(0px) scale(0.98);
+  }
+
+  /* 5. Outline Gold - Fine Jewellery Wireframe Action */
+  .btn-outline-gold {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    font-size: 0.75rem;
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.95rem;
+    background: transparent;
+    color: #9d7320;
+    border: 1px solid #c99f3b;
+    transition: all 0.16s ease;
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.25;
+    user-select: none;
+  }
+  :is(.dark .btn-outline-gold) {
+    color: #f7d57e;
+    border-color: #b58622;
+  }
+  .btn-outline-gold:hover {
+    background: rgba(201, 159, 59, 0.1);
+    border-color: #d8b059;
+    color: #7b5814;
+    transform: translateY(-0.5px);
+  }
+  :is(.dark .btn-outline-gold:hover) {
+    background: rgba(212, 175, 55, 0.16);
+    color: #ffffff;
+  }
+  .btn-outline-gold:active {
+    transform: translateY(0px) scale(0.98);
+  }
+
+  /* 6. Outline Silver - Platinum Wireframe Action */
+  .btn-outline-silver {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.95rem;
+    background: transparent;
+    color: #556070;
+    border: 1px solid #c2cbd6;
+    transition: all 0.16s ease;
+    cursor: pointer;
+    user-select: none;
+  }
+  :is(.dark .btn-outline-silver) {
+    color: #cbd5e1;
+    border-color: #4b5260;
+  }
+  .btn-outline-silver:hover {
+    background: rgba(200, 210, 225, 0.15);
+    color: #2b3340;
+    transform: translateY(-0.5px);
+  }
+  :is(.dark .btn-outline-silver:hover) {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+  }
+  .btn-outline-silver:active {
+    transform: translateY(0px) scale(0.98);
+  }
+
+  /* 7. Bordeaux / Burgundy - Muted Deletion & Cancellation */
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.95rem;
+    background: #fff3f3;
+    color: #9f1239;
+    border: 1px solid #fecdd3;
+    transition: all 0.16s ease;
+    cursor: pointer;
+  }
+  :is(.dark .btn-danger) {
+    background: rgba(76, 5, 25, 0.4);
+    color: #fecdd3;
+    border-color: rgba(190, 18, 60, 0.5);
+  }
+  .btn-danger:hover {
+    background: #ffe4e6;
+    border-color: #fda4af;
+    color: #881337;
+    transform: translateY(-0.5px);
+  }
+  :is(.dark .btn-danger:hover) {
+    background: rgba(136, 19, 55, 0.55);
+    border-color: rgba(225, 29, 72, 0.7);
+  }
+  .btn-danger:active {
+    transform: translateY(0px) scale(0.98);
+  }
+}
+
+/* Sophisticated Atelier Icon Tone Utilities */
+.icon-gold {
+  color: #c99f3b;
+}
+:is(.dark .icon-gold) {
+  color: #e6be65;
+}
+
+.icon-silver {
+  color: #7b8696;
+}
+:is(.dark .icon-silver) {
+  color: #cbd5e1;
+}
+
+/* Noble Gold Typography & Monetary Value */
+.text-gold-noble {
+  color: #9d7320;
+}
+:is(.dark .text-gold-noble) {
+  color: #e6be65;
+}
+
+.text-silver-noble {
+  color: #556070;
+}
+:is(.dark .text-silver-noble) {
+  color: #cbd5e1;
+}
+
+/* Hairline Borders (1px subtle metallic transparency) */
+.border-hairline {
+  border-width: 1px;
+  border-color: #e8dfc8;
+}
+:is(.dark .border-hairline) {
+  border-color: #3a302a;
+}
+
+.border-hairline-silver {
+  border-width: 1px;
+  border-color: #cbd5e1;
+}
+:is(.dark .border-hairline-silver) {
+  border-color: #475569;
+}
+
+.border-hairline-gold {
+  border-width: 1px;
+  border-color: rgba(201, 159, 59, 0.4);
+}
+:is(.dark .border-hairline-gold) {
+  border-color: rgba(230, 190, 101, 0.4);
+}
+
+/* Nude Atelier Surfaces */
+.bg-canvas-nude {
+  background-color: #fbf9f5;
+}
+:is(.dark .bg-canvas-nude) {
+  background-color: #171412;
+}
+
+.bg-panel-linen {
+  background-color: #f5efeb;
+}
+:is(.dark .bg-panel-linen) {
+  background-color: #1f1a17;
+}
+
+.bg-card-ivory {
+  background-color: #fffdf9;
+}
+:is(.dark .bg-card-ivory) {
+  background-color: #2b241f;
+}
+
+/* Noble Badges - Zero AI Slop (No fluorescent pills) */
+.badge-gold {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  background-color: rgba(216, 176, 89, 0.14);
+  color: #9d7320;
+  border: 1px solid rgba(201, 159, 59, 0.4);
+}
+:is(.dark .badge-gold) {
+  background-color: rgba(216, 176, 89, 0.16);
+  color: #e6be65;
+  border-color: rgba(230, 190, 101, 0.35);
+}
+
+.badge-silver {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  background-color: rgba(241, 245, 249, 0.8);
+  color: #556070;
+  border: 1px solid #cbd5e1;
+}
+:is(.dark .badge-silver) {
+  background-color: rgba(43, 36, 31, 0.6);
+  color: #cbd5e1;
+  border-color: #475569;
+}
+
+.badge-muted {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background-color: #f5efeb;
+  color: #7e7062;
+  border: 1px solid #e8dfc8;
+}
+:is(.dark .badge-muted) {
+  background-color: #231d18;
+  color: #a89a89;
+  border-color: #3d3329;
+}
+
+/* Editorial Serif Font Utility */
+.font-serif-luxury {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+/* Global button cursor and smooth tap */
+button:not(:disabled) {
+  cursor: pointer;
+}
