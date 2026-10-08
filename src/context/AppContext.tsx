@@ -26,7 +26,7 @@ import {
   Supplier,
   UserPermissions,
 } from '../types';
-import { initialSettings, initialUsers } from '../db/seedData';
+import { initialSettings, initialUsers, sampleProducts } from '../db/seedData';
 
 export interface ToastMessage {
   id: string;
@@ -136,7 +136,16 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [settings, setSettings] = useState<StoreSettings>(initialSettings);
+  const [settings, setSettings] = useState<StoreSettings>(() => {
+    try {
+      const saved = localStorage.getItem('minha_loja_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return { ...initialSettings, ...parsed };
+      }
+    } catch {}
+    return initialSettings;
+  });
   const [users, setUsers] = useState<AppUser[]>(initialUsers);
   const [currentUser, setCurrentUser] = useState<AppUser>(initialUsers[0]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -169,8 +178,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Global Category filter (omnipresent across all modules)
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // Collections state
-  const [products, setProducts] = useState<Product[]>([]);
+  // Collections state - Synchronous cache prevents blank catalog flashes
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('minha_loja_products_cache');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return sampleProducts;
+  });
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -260,6 +278,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ]);
 
       setSettings(loadedSettings);
+      try {
+        localStorage.setItem('minha_loja_settings', JSON.stringify(loadedSettings));
+      } catch {}
+
       if (loadedUsers.length > 0) {
         setUsers(loadedUsers);
         // keep current user or default to first
@@ -270,7 +292,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser(initialUsers[0]);
       }
 
-      setProducts(loadedProducts);
+      if (loadedProducts.length > 0) {
+        setProducts(loadedProducts);
+        try {
+          localStorage.setItem('minha_loja_products_cache', JSON.stringify(loadedProducts));
+        } catch {}
+      } else {
+        await db.putMany('products', sampleProducts);
+        setProducts(sampleProducts);
+        try {
+          localStorage.setItem('minha_loja_products_cache', JSON.stringify(sampleProducts));
+        } catch {}
+      }
       setCustomers(loadedCustomers);
       setSuppliers(loadedSuppliers);
       setSales(loadedSales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -317,6 +350,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
     await db.saveSettings(updated);
+    try {
+      localStorage.setItem('minha_loja_settings', JSON.stringify(updated));
+    } catch {}
     await db.logAudit('Configurações', 'Sistema', 'Configurações da loja atualizadas', undefined, currentUser.name);
     showToast('Configurações salvas com sucesso!', 'success');
   };
