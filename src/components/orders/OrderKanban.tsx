@@ -43,7 +43,7 @@ const KANBAN_STAGES: { id: OrderStatus; label: string; badgeClass: string }[] = 
 export const OrderKanban: React.FC<OrderKanbanProps> = ({ onOpenCreate, onOpenEdit }) => {
   const { orders, updateOrderStatus, deleteOrder, settings, showToast } = useApp();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
-  const [channelFilter, setChannelFilter] = useState<'all' | 'instagram' | 'whatsapp'>('all');
+  const [channelFilter, setChannelFilter] = useState<'all' | 'instagram' | 'whatsapp' | 'catalogo_online'>('all');
   const [selectedMobileStage, setSelectedMobileStage] = useState<OrderStatus>('novo');
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<Order | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
@@ -148,6 +148,7 @@ export const OrderKanban: React.FC<OrderKanbanProps> = ({ onOpenCreate, onOpenEd
             className="px-3 py-2 text-xs font-semibold rounded-xl border border-[#E8DFC8] dark:border-[#3A302A] bg-[#F5EFEB]/60 dark:bg-[#28211C] text-[#2C241E] dark:text-[#F3EDE6] cursor-pointer"
           >
             <option value="all">Todos os Canais</option>
+            <option value="catalogo_online">📱 Catálogo Online</option>
             <option value="instagram">Apenas Instagram</option>
             <option value="whatsapp">Apenas WhatsApp</option>
           </select>
@@ -251,7 +252,12 @@ export const OrderKanban: React.FC<OrderKanbanProps> = ({ onOpenCreate, onOpenEd
                               #{order.orderNumber}
                             </span>
                             <div className="flex items-center gap-1.5 text-[11px] font-semibold">
-                              {order.origin === 'instagram' ? (
+                              {order.origin === 'catalogo_online' ? (
+                                <span className="flex items-center gap-1 text-purple-700 dark:text-purple-300 font-mono text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 px-1.5 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
+                                  <ShoppingBag className="w-3.5 h-3.5 text-purple-600" strokeWidth={1.75} />
+                                  <span>CATÁLOGO</span>
+                                </span>
+                              ) : order.origin === 'instagram' ? (
                                 <span className="flex items-center gap-1 text-[#9D7320] dark:text-[#E6BE65] font-mono text-[10px] font-bold">
                                   <Instagram className="w-3.5 h-3.5 text-[#C99F3B]" strokeWidth={1.75} />
                                   <span>INSTAGRAM</span>

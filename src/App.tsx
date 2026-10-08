@@ -37,6 +37,7 @@ import { FinancialOverview } from './components/financial/FinancialOverview';
 import { ReportsView } from './components/reports/ReportsView';
 import { BatchLabelsPrintView } from './components/labels/BatchLabelsPrintView';
 import { DigitalCatalogView } from './components/catalog/DigitalCatalogView';
+import { PublicCatalogView } from './components/catalog/PublicCatalogView';
 import { SettingsView } from './components/settings/SettingsView';
 import { BackupRestoreView } from './components/backup/BackupRestoreView';
 import { CrmLoyaltyView } from './components/crm/CrmLoyaltyView';
@@ -460,7 +461,50 @@ const MainApp: React.FC = () => {
   );
 };
 
+// Helper to detect if accessing the dedicated public catalog area
+function checkIsPublicCatalogMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  const search = window.location.search.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  const path = window.location.pathname.toLowerCase();
+  return (
+    search.includes('catalogo') ||
+    search.includes('catalog') ||
+    search.includes('vitrine') ||
+    hash.includes('catalogo') ||
+    hash.includes('catalog') ||
+    hash.includes('vitrine') ||
+    path.endsWith('/catalogo') ||
+    path.endsWith('/vitrine')
+  );
+}
+
 export default function App() {
+  const [isPublicCatalog, setIsPublicCatalog] = useState(checkIsPublicCatalogMode);
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      setIsPublicCatalog(checkIsPublicCatalogMode());
+    };
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
+
+  // Dedicated, Public Customer Catalog View (completely separated from internal admin)
+  if (isPublicCatalog) {
+    return (
+      <AppProvider>
+        <PublicCatalogView />
+        <ToastContainer />
+      </AppProvider>
+    );
+  }
+
+  // Internal Management System (PDV, Stock, Financial, Settings)
   return (
     <AppProvider>
       <MainApp />

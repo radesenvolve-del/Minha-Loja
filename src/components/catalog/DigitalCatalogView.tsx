@@ -14,6 +14,11 @@ import {
   Sparkles,
   Eye,
   X,
+  Copy,
+  Printer,
+  ShieldCheck,
+  UserCheck,
+  Lock,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Product } from '../../types';
@@ -69,11 +74,27 @@ export const DigitalCatalogView: React.FC = () => {
     });
   }, [products, search, selectedCategory]);
 
+  const getPublicCatalogUrl = () => {
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    return `${origin}${pathname}?catalogo=1`;
+  };
+
   const handleOpenShare = async () => {
-    const catalogUrl = window.location.href;
+    const catalogUrl = getPublicCatalogUrl();
     const qr = await generateQRCode(catalogUrl);
     setCatalogQrUrl(qr);
     setShowShareModal(true);
+  };
+
+  const handleCopyPublicLink = () => {
+    const url = getPublicCatalogUrl();
+    navigator.clipboard.writeText(url);
+    showToast('Link do catálogo público copiado!', 'success');
+  };
+
+  const handleOpenAsCustomer = () => {
+    window.open(getPublicCatalogUrl(), '_blank');
   };
 
   const handleOpenCard = (product?: Product | null) => {
@@ -173,6 +194,98 @@ export const DigitalCatalogView: React.FC = () => {
 
   return (
     <div className="space-y-5">
+      {/* Dedicated Public Catalog Section */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-linear-to-br from-[#FAF3DE] via-[#FFFDF9] to-[#F5ECE0] dark:from-[#292014] dark:via-[#1F1914] dark:to-[#171310] border-2 border-[#D4AF37]/50 dark:border-[#D4AF37]/40 shadow-md space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-linear-to-tr from-[#D4AF37] to-[#F3E5AB] flex items-center justify-center text-[#2C241E] shadow-sm shrink-0">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-black text-[#2C241E] dark:text-[#F3EDE6]">
+                  Área Pública e Exclusiva do Catálogo
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#D4AF37] text-[#2C241E]">
+                  Área do Cliente
+                </span>
+              </div>
+              <p className="text-xs text-[#7E7062] dark:text-[#B5A796] mt-0.5">
+                Vitrine pública para divulgação via link ou QR Code no Instagram, WhatsApp ou balcão físico. Totalmente isolada do painel administrativo.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleOpenAsCustomer}
+              className="flex-1 sm:flex-none btn-gold !py-2 !px-3.5 !text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Abrir como Cliente</span>
+            </button>
+            <button
+              onClick={handleOpenShare}
+              className="flex-1 sm:flex-none btn-silver !py-2 !px-3.5 !text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <QrCode className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Ver QR Code / Placa</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Link box with 1-click copy */}
+        <div className="p-3 rounded-2xl bg-white dark:bg-[#181310] border border-[#ECD9A2] dark:border-[#3D3020] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] font-bold text-[#8C6B1B] dark:text-[#F2D68C] shrink-0 uppercase tracking-wider">
+              Link Público:
+            </span>
+            <span className="text-xs font-mono text-[#524436] dark:text-[#D5C6B5] truncate select-all">
+              {getPublicCatalogUrl()}
+            </span>
+          </div>
+          <button
+            onClick={handleCopyPublicLink}
+            className="py-1.5 px-3 rounded-xl bg-[#2C241E] hover:bg-black text-white dark:bg-[#D4AF37] dark:text-[#1F170A] text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            <span>Copiar Link Exclusivo</span>
+          </button>
+        </div>
+
+        {/* 4 Key Pillars of Public Catalog */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1 text-xs">
+          <div className="p-2.5 rounded-xl bg-white/80 dark:bg-[#1D1714]/80 border border-[#E8DFC8] dark:border-[#382F28] flex items-center gap-2">
+            <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="leading-tight">
+              <p className="font-bold text-[11px] text-[#2C241E] dark:text-white">Totalmente Separado</p>
+              <p className="text-[10px] text-[#7E7062] dark:text-[#AFA292]">Sem acesso ao painel interno</p>
+            </div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white/80 dark:bg-[#1D1714]/80 border border-[#E8DFC8] dark:border-[#382F28] flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-[#D4AF37] shrink-0" />
+            <div className="leading-tight">
+              <p className="font-bold text-[11px] text-[#2C241E] dark:text-white">Identificação Prévia</p>
+              <p className="text-[10px] text-[#7E7062] dark:text-[#AFA292]">Pede Nome e WhatsApp sem senha</p>
+            </div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white/80 dark:bg-[#1D1714]/80 border border-[#E8DFC8] dark:border-[#382F28] flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="leading-tight">
+              <p className="font-bold text-[11px] text-[#2C241E] dark:text-white">Preços & Estoque Reais</p>
+              <p className="text-[10px] text-[#7E7062] dark:text-[#AFA292]">Sincronizados em tempo real</p>
+            </div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white/80 dark:bg-[#1D1714]/80 border border-[#E8DFC8] dark:border-[#382F28] flex items-center gap-2">
+            <ShoppingBag className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+            <div className="leading-tight">
+              <p className="font-bold text-[11px] text-[#2C241E] dark:text-white">Pedidos no Kanban</p>
+              <p className="text-[10px] text-[#7E7062] dark:text-[#AFA292]">Direto na sua esteira e Zap</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-3xl bg-[#FFFDF9] dark:bg-[#1F1A17] border border-[#E8DFC8] dark:border-[#3A302A] shadow-2xs">
         <div>
@@ -371,44 +484,99 @@ export const DigitalCatalogView: React.FC = () => {
       </div>
 
       {/* Share Modal */}
-      <Modal isOpen={showShareModal} onClose={() => setShowShareModal(false)} title="Compartilhar Catálogo" maxWidth="sm">
+      <Modal isOpen={showShareModal} onClose={() => setShowShareModal(false)} title="QR Code & Link do Catálogo Público" maxWidth="sm">
         <div className="flex flex-col items-center text-center space-y-4 text-xs">
-          <div className="p-3 bg-white border rounded-2xl">
-            {catalogQrUrl && (
-              <img src={catalogQrUrl} alt="QR Catálogo" className="w-44 h-44 object-contain" />
+          <div className="p-4 bg-white border-2 border-[#D4AF37] rounded-3xl shadow-sm flex flex-col items-center">
+            {catalogQrUrl ? (
+              <img src={catalogQrUrl} alt="QR Catálogo" className="w-48 h-48 object-contain" />
+            ) : (
+              <div className="w-48 h-48 flex items-center justify-center">
+                <div className="w-8 h-8 border-3 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+              </div>
             )}
+            <span className="text-[11px] font-bold text-[#8C6B1B] mt-2">
+              ✨ {settings.storeName}
+            </span>
           </div>
 
           <div className="space-y-1">
             <h4 className="font-bold text-sm text-[#2C241E] dark:text-[#F3EDE6]">
-              {settings.storeName}
+              Acesso Exclusivo para Clientes
             </h4>
-            <p className="text-[#7E7062] dark:text-[#B5A796]">
-              Aponte a câmera do celular para abrir o catálogo diretamente na tela.
+            <p className="text-[#7E7062] dark:text-[#B5A796] max-w-xs">
+              Aponte a câmera do celular no QR Code para abrir o catálogo diretamente na tela do cliente sem senha.
             </p>
           </div>
 
-          <div className="w-full flex gap-2">
+          <div className="w-full space-y-2">
+            <div className="flex gap-2">
+              <button
+                onClick={handleCopyPublicLink}
+                className="flex-1 btn-silver !py-2.5 flex items-center justify-center gap-1.5 cursor-pointer font-bold"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copiar Link</span>
+              </button>
+              <button
+                onClick={() => {
+                  const url = getPublicCatalogUrl();
+                  openWhatsApp(
+                    '',
+                    `✨ Olá! Acesse nosso catálogo exclusivo com fotos, preços e novidades da *${settings.storeName}*: ${url}`
+                  );
+                }}
+                className="flex-1 btn-gold !py-2.5 flex items-center justify-center gap-1 cursor-pointer font-bold"
+              >
+                <MessageCircle className="w-4 h-4" strokeWidth={1.75} />
+                <span>WhatsApp</span>
+              </button>
+            </div>
+
             <button
               onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                showToast('Link do catálogo copiado!', 'success');
+                const printWindow = window.open('', '_blank');
+                if (!printWindow) return;
+                const url = getPublicCatalogUrl();
+                printWindow.document.write(`
+                  <!DOCTYPE html>
+                  <html>
+                    <head>
+                      <title>QR Code - ${settings.storeName}</title>
+                      <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #fafafa; }
+                        .card { background: white; border: 3px solid #D4AF37; border-radius: 28px; padding: 40px; text-align: center; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+                        h1 { color: #2C241E; font-size: 26px; margin: 0 0 8px; font-weight: 900; }
+                        p { color: #666; font-size: 14px; margin: 0 0 24px; line-height: 1.4; }
+                        .qr-box { padding: 16px; border: 1px solid #eee; border-radius: 20px; display: inline-block; background: #fff; margin-bottom: 20px; }
+                        img { width: 220px; height: 220px; display: block; }
+                        .tag { display: inline-block; background: #FAF3DE; color: #9E7317; font-weight: bold; font-size: 12px; padding: 6px 16px; border-radius: 20px; border: 1px solid #ECD9A2; }
+                        .footer { margin-top: 16px; font-size: 11px; color: #999; }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="card">
+                        <h1>✨ ${settings.storeName}</h1>
+                        <p>Aponte a câmera do seu celular para ver nosso catálogo com fotos, preços e promoções exclusivas!</p>
+                        <div class="qr-box">
+                          <img src="${catalogQrUrl}" alt="QR Code" />
+                        </div>
+                        <div>
+                          <span class="tag">Peças Exclusivas • Pronta Entrega</span>
+                        </div>
+                        <div class="footer">${url}</div>
+                      </div>
+                      <script>
+                        window.onload = function() { window.print(); }
+                      </script>
+                    </body>
+                  </html>
+                `);
+                printWindow.document.close();
               }}
-              className="flex-1 btn-silver !py-2.5 cursor-pointer"
+              className="w-full py-2 px-3 rounded-xl border border-[#E8DFC8] dark:border-[#3A302A] text-xs text-[#524436] dark:text-[#C8BCAD] hover:bg-[#F5ECE0] dark:hover:bg-[#2C241E] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
-              Copiar Link
-            </button>
-            <button
-              onClick={() => {
-                openWhatsApp(
-                  '',
-                  `Confira nosso catálogo de produtos atualizado na ${settings.storeName}: ${window.location.href}`
-                );
-              }}
-              className="flex-1 btn-gold !py-2.5 flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <MessageCircle className="w-4 h-4" strokeWidth={1.75} />
-              <span>WhatsApp</span>
+              <Printer className="w-3.5 h-3.5" />
+              <span>Imprimir Plaquinha de Balcão com QR Code</span>
             </button>
           </div>
         </div>

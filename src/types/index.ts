@@ -4,7 +4,7 @@ export type ProductStatus = 'ativo' | 'inativo' | 'esgotado';
 export type StockMovementType = 'entrada' | 'venda' | 'devolucao' | 'ajuste' | 'perda' | 'avaria' | 'consumo' | 'cancelamento';
 export type PaymentMethod = 'pix' | 'dinheiro' | 'debito' | 'credito' | 'credito_parcelado' | 'transferencia' | 'outro';
 export type OrderStatus = 'novo' | 'aguardando_pagamento' | 'pagamento_confirmado' | 'em_separacao' | 'pronto_envio' | 'enviado' | 'entregue' | 'cancelado' | 'devolvido';
-export type OrderOrigin = 'instagram' | 'whatsapp' | 'balcao' | 'outros';
+export type OrderOrigin = 'instagram' | 'whatsapp' | 'balcao' | 'outros' | 'catalogo_online';
 export type QuoteStatus = 'rascunho' | 'enviado' | 'aprovado' | 'recusado' | 'expirado';
 export type AccountStatus = 'pendente' | 'pago' | 'recebido' | 'vencido' | 'cancelado';
 export type CashSessionStatus = 'open' | 'closed';
@@ -97,6 +97,7 @@ export interface Customer {
   name: string;
   photo?: string;
   whatsapp?: string;
+  phone?: string;
   instagram?: string;
   cpf?: string;
   email?: string;
