@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Menu,
   Search,
@@ -14,9 +14,13 @@ import {
   LayoutDashboard,
   ShoppingCart,
   BookOpen,
+  User,
+  Lock,
+  Shield,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ActiveTab } from '../../types';
+import { UserSessionModal } from '../common/UserSessionModal';
 
 interface HeaderProps {
   onOpenMenuDrawer: () => void;
@@ -38,7 +42,12 @@ export const Header: React.FC<HeaderProps> = ({
     updateSettings,
     setIsFastPDVOpen,
     orders,
+    currentUser,
+    isLocked,
+    setIsLocked,
   } = useApp();
+
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
 
   const toggleTheme = () => {
     const nextTheme = settings.theme === 'dark' ? 'light' : 'dark';
@@ -49,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
     (o) => o.status === 'novo' || o.status === 'aguardando_pagamento'
   ).length;
 
-  const quickNavTabs: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }>; badge?: number }[] = [
+  const quickNavTabs: { id: ActiveTab; label: string; icon: React.FC<{ className?: string; strokeWidth?: number }>; badge?: number }[] = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
     { id: 'products', label: 'Produtos', icon: Package },
     { id: 'pdv', label: 'PDV', icon: ShoppingCart },
@@ -184,6 +193,36 @@ export const Header: React.FC<HeaderProps> = ({
             {settings.theme === 'dark' ? <Sun className="w-4 h-4 text-[#E6BE65]" strokeWidth={1.75} /> : <Moon className="w-4 h-4 text-[#556070]" strokeWidth={1.75} />}
           </button>
 
+          {/* Current Operator / User Session Badge */}
+          <div className="flex items-center">
+            <button
+              onClick={() => setIsSessionModalOpen(true)}
+              className="btn-silver !py-1.5 !px-2.5 sm:!px-3 min-h-[42px] flex items-center gap-2 rounded-xl shadow-2xs cursor-pointer"
+              title="Trocar operador ou bloquear terminal"
+            >
+              <div className="w-6 h-6 rounded-lg bg-amber-500/15 text-[#C99F3B] flex items-center justify-center text-[10px] font-black border border-[#C99F3B]/30">
+                {currentUser.name.slice(0, 1).toUpperCase()}
+              </div>
+              <div className="hidden sm:block text-left leading-tight">
+                <p className="text-[11px] font-extrabold text-[#2C241E] dark:text-[#F3EDE6] truncate max-w-[85px]">
+                  {currentUser.name.split(' ')[0]}
+                </p>
+                <p className="text-[9px] uppercase font-bold text-[#A67C1E] dark:text-[#E6BE65]">
+                  {currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'gerente' ? 'Gerente' : 'Operador'}
+                </p>
+              </div>
+            </button>
+
+            {/* Quick Lock Button */}
+            <button
+              onClick={() => setIsLocked(true)}
+              className="ml-1 p-2 text-zinc-400 hover:text-amber-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              title="Bloquear Terminal (Exige PIN para desbloquear)"
+            >
+              <Lock className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {/* Primary CTA: Nova Venda PDV */}
           <button
             onClick={() => setIsFastPDVOpen(true)}
@@ -194,6 +233,21 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Operator Session Modal */}
+      <UserSessionModal
+        isOpen={isSessionModalOpen}
+        onClose={() => setIsSessionModalOpen(false)}
+      />
+
+      {/* Screen Lock Overlay */}
+      {isLocked && (
+        <UserSessionModal
+          isOpen={true}
+          isLockScreen={true}
+          onClose={() => setIsLocked(false)}
+        />
+      )}
     </header>
   );
 };

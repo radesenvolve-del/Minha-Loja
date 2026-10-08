@@ -39,6 +39,10 @@ import { BatchLabelsPrintView } from './components/labels/BatchLabelsPrintView';
 import { DigitalCatalogView } from './components/catalog/DigitalCatalogView';
 import { SettingsView } from './components/settings/SettingsView';
 import { BackupRestoreView } from './components/backup/BackupRestoreView';
+import { CrmLoyaltyView } from './components/crm/CrmLoyaltyView';
+import { PromotionsView } from './components/promotions/PromotionsView';
+import { DeviceSyncView } from './components/sync/DeviceSyncView';
+import { AuditLogsView } from './components/audit/AuditLogsView';
 
 import { Product, Customer, Order } from './types';
 
@@ -354,6 +358,14 @@ const MainApp: React.FC = () => {
           {activeTab === 'labels' && <BatchLabelsPrintView />}
 
           {activeTab === 'catalog' && <DigitalCatalogView />}
+
+          {activeTab === 'crm' && <CrmLoyaltyView />}
+
+          {activeTab === 'promotions' && <PromotionsView />}
+
+          {activeTab === 'sync' && <DeviceSyncView />}
+
+          {activeTab === 'audit' && <AuditLogsView />}
 
           {activeTab === 'settings' && <SettingsView />}
 

@@ -22,14 +22,36 @@ import { ConfirmModal } from '../common/ConfirmModal';
 import { ReceiptModal } from '../pdv/ReceiptModal';
 import { Modal } from '../common/Modal';
 import { SwipeableRow, SwipeAction } from '../common/SwipeableRow';
+import { AdminApprovalModal } from '../common/AdminApprovalModal';
 
 export const SalesHistory: React.FC = () => {
-  const { sales, cancelSale, registerStockMovement, settings, customers, showToast } = useApp();
+  const {
+    sales,
+    cancelSale,
+    processItemReturn,
+    settings,
+    customers,
+    showToast,
+    currentUser,
+    hasPermission,
+  } = useApp();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'cancelled'>('all');
   const [selectedSaleForReceipt, setSelectedSaleForReceipt] = useState<Sale | null>(null);
   const [selectedSaleForDetails, setSelectedSaleForDetails] = useState<Sale | null>(null);
+
+  // Cancellation Modal State
+  const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isAdminApprovalOpen, setIsAdminApprovalOpen] = useState(false);
+
+  // Return Modal State
+  const [saleForReturn, setSaleForReturn] = useState<Sale | null>(null);
+  const [returnItemIndex, setReturnItemIndex] = useState<number>(0);
+  const [returnQty, setReturnQty] = useState<number>(1);
+  const [returnReason, setReturnReason] = useState('');
+  const [refundMethod, setRefundMethod] = useState<'credito_cliente' | 'estorno_dinheiro' | 'estorno_pix' | 'troca_produto'>('credito_cliente');
 
   const handleSendWhatsAppDirect = (sale: Sale) => {
     const text = generateSaleWhatsAppReceipt(
@@ -69,16 +91,6 @@ export const SalesHistory: React.FC = () => {
     }
   };
 
-  // Cancellation Modal State
-  const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null);
-  const [cancelReason, setCancelReason] = useState('');
-
-  // Return Modal State
-  const [saleForReturn, setSaleForReturn] = useState<Sale | null>(null);
-  const [returnItemIndex, setReturnItemIndex] = useState<number>(0);
-  const [returnQty, setReturnQty] = useState<number>(1);
-  const [returnReason, setReturnReason] = useState('');
-
   const filteredSales = useMemo(() => {
     return sales.filter((s) => {
       const matchSearch =
@@ -91,6 +103,15 @@ export const SalesHistory: React.FC = () => {
       return matchSearch && matchStatus;
     });
   }, [sales, search, statusFilter]);
+
+  const handleInitiateCancel = (sale: Sale) => {
+    if (!hasPermission('canCancelSales') && settings.requireAdminPinForCancel !== false) {
+      setSaleToCancel(sale);
+      setIsAdminApprovalOpen(true);
+      return;
+    }
+    setSaleToCancel(sale);
+  };
 
   const handleConfirmCancel = async () => {
     if (!saleToCancel) return;
@@ -117,24 +138,20 @@ export const SalesHistory: React.FC = () => {
       return;
     }
 
-    // Register stock movement for returned item
-    await registerStockMovement({
-      date: new Date().toISOString(),
-      productId: item.productId,
-      productName: item.name,
-      sku: item.sku,
-      type: 'devolucao',
-      quantity: returnQty,
-      previousStock: 0,
-      newStock: 0, // AppContext handles stock calculation
-      reason: `Devolução Venda #${saleForReturn.saleNumber} (${returnQty} un). Motivo: ${returnReason}`,
-      referenceId: saleForReturn.id,
-      userName: 'Operador',
-    });
-
-    showToast(`Devolução de ${returnQty}x "${item.name}" concluída com retorno ao estoque!`, 'success');
-    setSaleForReturn(null);
-    setReturnReason('');
+    try {
+      await processItemReturn(
+        saleForReturn.id,
+        returnItemIndex,
+        returnQty,
+        returnReason.trim(),
+        refundMethod
+      );
+      setSaleForReturn(null);
+      setReturnReason('');
+      setReturnQty(1);
+    } catch (err: any) {
+      showToast(err.message || 'Erro ao processar devolução.', 'error');
+    }
   };
 
   return (
@@ -617,6 +634,20 @@ export const SalesHistory: React.FC = () => {
             </div>
 
             <div>
+              <label className="block font-semibold mb-1 text-[#2C241E] dark:text-[#F3EDE6]">Forma de Restituição / Reembolso:</label>
+              <select
+                value={refundMethod}
+                onChange={(e) => setRefundMethod(e.target.value as any)}
+                className="w-full px-3 py-2 rounded-xl border border-[#E8DFC8] dark:border-[#3A302A] bg-[#F5EFEB]/50 dark:bg-[#1A1512] text-[#2C241E] dark:text-[#F3EDE6] font-semibold"
+              >
+                <option value="credito_cliente">Crédito na Loja (Saldo em haver para o cliente)</option>
+                <option value="estorno_dinheiro">Estorno em Dinheiro (Saída do Caixa)</option>
+                <option value="estorno_pix">Estorno via PIX</option>
+                <option value="troca_produto">Troca Direta por Outra Peça</option>
+              </select>
+            </div>
+
+            <div>
               <label className="block font-semibold mb-1 text-[#2C241E] dark:text-[#F3EDE6]">Motivo da Devolução *</label>
               <input
                 type="text"
@@ -647,6 +678,21 @@ export const SalesHistory: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Admin Approval for Non-Admin Cancellation */}
+      <AdminApprovalModal
+        isOpen={isAdminApprovalOpen}
+        onClose={() => {
+          setIsAdminApprovalOpen(false);
+          setSaleToCancel(null);
+        }}
+        onApproved={() => {
+          setIsAdminApprovalOpen(false);
+          // Now proceed to confirm modal
+        }}
+        title="Autorização para Cancelamento de Venda"
+        description="Operadores necessitam de autorização do Administrador ou Gerente para estornar vendas já finalizadas."
+      />
 
       {/* Thermal Receipt Modal */}
       <ReceiptModal

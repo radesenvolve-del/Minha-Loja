@@ -43,6 +43,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     accountsReceivable,
     setActiveTab,
     setIsFastPDVOpen,
+    users,
+    settings,
   } = useApp();
 
   const metrics = useMemo(() => {
@@ -58,6 +60,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     const revenueToday = salesToday.reduce((sum, s) => sum + s.total, 0);
     const revenueMonth = salesThisMonth.reduce((sum, s) => sum + s.total, 0);
     const profitMonth = salesThisMonth.reduce((sum, s) => sum + s.estimatedProfit, 0);
+    const marginPercent = revenueMonth > 0 ? (profitMonth / revenueMonth) * 100 : 0;
 
     const itemsSoldToday = salesToday.reduce(
       (sum, s) => sum + s.items.reduce((iSum, item) => iSum + item.quantity, 0),
@@ -78,6 +81,14 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     // Stock alerts
     const lowStockProducts = products.filter((p) => p.stock > 0 && p.stock <= p.minStock);
     const outOfStockProducts = products.filter((p) => p.stock <= 0);
+
+    // Idle products: stock > 0, no sales in last 30 days
+    const soldProductIds = new Set(
+      activeSales
+        .filter((s) => Date.now() - new Date(s.date).getTime() < 30 * 86400000)
+        .flatMap((s) => s.items.map((i) => i.productId))
+    );
+    const idleProducts = products.filter((p) => p.stock > 0 && !soldProductIds.has(p.id));
 
     // Accounts
     const pendingPayable = accountsPayable
@@ -122,6 +133,19 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5);
 
+    // Sellers performance
+    const sellersGoal = users.map((u) => {
+      const uSales = salesThisMonth.filter((s) => s.sellerId === u.id || s.userName === u.name);
+      const total = uSales.reduce((acc, s) => acc + s.total, 0);
+      const target = u.monthlySalesTarget || 15000;
+      return {
+        user: u,
+        total,
+        target,
+        progress: Math.min(100, Math.round((total / target) * 100)),
+      };
+    });
+
     // Payment methods breakdown
     const paymentMethodsMap: Record<string, number> = {};
     salesThisMonth.forEach((s) => {
@@ -136,18 +160,21 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       salesMonthCount: salesThisMonth.length,
       revenueMonth,
       profitMonth,
+      marginPercent,
       avgTicket,
       itemsSoldMonth,
       pendingOrdersCount: pendingOrders.length,
       lowStockProducts,
       outOfStockProducts,
+      idleProducts,
       pendingPayable,
       pendingReceivable,
       last7Days,
       topSellingProducts,
+      sellersGoal,
       paymentMethodsMap,
     };
-  }, [sales, orders, products, accountsPayable, accountsReceivable]);
+  }, [sales, orders, products, accountsPayable, accountsReceivable, users]);
 
   // Max value for 7-day bar chart
   const maxDayTotal = Math.max(1, ...metrics.last7Days.map((d) => d.total));
@@ -174,13 +201,14 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       <div className="p-4 sm:p-5 rounded-3xl bg-[#FFFDF9] dark:bg-[#1F1A17] border border-[#C99F3B]/40 shadow-2xs">
         <div className="flex items-center gap-2 mb-2 text-[#9D7320] dark:text-[#E6BE65] font-extrabold text-xs uppercase tracking-wider">
           <Sparkles className="w-4 h-4 text-[#C99F3B]" strokeWidth={1.75} />
-          <span>Resumo do Atelier</span>
+          <span>Resumo Executivo do Atelier</span>
         </div>
         <p className="text-sm sm:text-base text-[#2C241E] dark:text-[#F3EDE6] leading-relaxed">
           {metrics.revenueToday > 0 ? (
             <>
               Hoje você vendeu <strong className="text-[#9D7320] dark:text-[#E6BE65] font-mono">{formatBRL(metrics.revenueToday)}</strong> em{' '}
-              <strong>{metrics.itemsSoldToday} produtos</strong>.
+              <strong>{metrics.itemsSoldToday} produtos</strong>. Margem líquida do mês:{' '}
+              <strong className="text-emerald-600 dark:text-emerald-400">{metrics.marginPercent.toFixed(1)}%</strong>.
             </>
           ) : (
             <>Nenhuma venda registrada hoje ainda. Que tal começar abrindo o PDV?</>
@@ -197,7 +225,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <strong className="text-[#9D7320] dark:text-[#E6BE65]">
                 {metrics.lowStockProducts.length} produtos
               </strong>{' '}
-              estão com estoque baixo.{' '}
+              estão no estoque mínimo.{' '}
             </>
           )}
           {metrics.pendingReceivable > 0 && (
@@ -207,6 +235,62 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           )}
         </p>
       </div>
+
+      {/* 1b. Smart Alerts Notification Strip */}
+      {(metrics.lowStockProducts.length > 0 || metrics.pendingPayable > 0 || metrics.idleProducts.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+          {metrics.lowStockProducts.length > 0 && (
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-[#C99F3B]/30 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#C99F3B] shrink-0" />
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                  {metrics.lowStockProducts.length} produtos em alerta de estoque
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('stock')}
+                className="btn-gold !py-1 !px-2.5 !text-[11px] shrink-0"
+              >
+                Repor
+              </button>
+            </div>
+          )}
+
+          {metrics.pendingPayable > 0 && (
+            <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                  {formatBRL(metrics.pendingPayable)} em contas pendentes
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('financial')}
+                className="btn-neutral !py-1 !px-2.5 !text-[11px] shrink-0"
+              >
+                Pagar
+              </button>
+            </div>
+          )}
+
+          {metrics.idleProducts.length > 0 && (
+            <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-indigo-500 shrink-0" />
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                  {metrics.idleProducts.length} produtos sem giro há 30d
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('promotions')}
+                className="btn-gold !py-1 !px-2.5 !text-[11px] shrink-0"
+              >
+                Promoção
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 2. Quick Action Shortcuts */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">

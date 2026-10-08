@@ -7,6 +7,7 @@ import {
   ActiveTab,
   AppUser,
   AuditLog,
+  AutoBackupRecord,
   CartItem,
   CashMovement,
   CashMovementType,
@@ -16,12 +17,14 @@ import {
   OrderStatus,
   PaymentMethod,
   Product,
+  Promotion,
   Purchase,
   Quote,
   Sale,
   StockMovement,
   StoreSettings,
   Supplier,
+  UserPermissions,
 } from '../types';
 import { initialSettings, initialUsers } from '../db/seedData';
 
@@ -38,6 +41,8 @@ interface AppContextType {
   setCurrentUser: (user: AppUser) => void;
   users: AppUser[];
   saveUser: (user: AppUser) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
+  hasPermission: (permission: keyof UserPermissions) => boolean;
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   isFastPDVOpen: boolean;
@@ -45,6 +50,8 @@ interface AppContextType {
   isSidebarCompact: boolean;
   setIsSidebarCompact: React.Dispatch<React.SetStateAction<boolean>>;
   toggleSidebarCompact: () => void;
+  isLocked: boolean;
+  setIsLocked: (locked: boolean) => void;
 
   // Collections
   products: Product[];
@@ -60,6 +67,8 @@ interface AppContextType {
   accountsReceivable: AccountReceivable[];
   purchases: Purchase[];
   auditLogs: AuditLog[];
+  promotions: Promotion[];
+  autoBackups: AutoBackupRecord[];
 
   // Data Actions
   refreshData: () => Promise<void>;
@@ -76,6 +85,13 @@ interface AppContextType {
     saleData: Omit<Sale, 'id' | 'saleNumber' | 'createdAt' | 'userName'> & { userName?: string }
   ) => Promise<Sale>;
   cancelSale: (saleId: string, reason: string) => Promise<void>;
+  processItemReturn: (
+    saleId: string,
+    itemIndex: number,
+    returnQty: number,
+    reason: string,
+    refundMethod?: 'credito_cliente' | 'estorno_dinheiro' | 'estorno_pix' | 'troca_produto'
+  ) => Promise<void>;
   saveOrder: (order: Order) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   deleteOrder: (id: string) => Promise<void>;
@@ -87,6 +103,13 @@ interface AppContextType {
   saveAccountReceivable: (item: AccountReceivable) => Promise<AccountReceivable>;
   markAccountReceivableReceived: (id: string, paymentMethod?: PaymentMethod) => Promise<void>;
   deleteAccountReceivable: (id: string) => Promise<void>;
+  savePromotion: (promotion: Promotion) => Promise<Promotion>;
+  deletePromotion: (id: string) => Promise<void>;
+
+  // Backups
+  createAutoBackupSnapshot: (reason: string) => Promise<void>;
+  restoreFromAutoBackup: (backupId: string) => Promise<void>;
+  deleteAutoBackup: (backupId: string) => Promise<void>;
 
   // Cash Session
   currentCashSession?: CashSession;
@@ -119,6 +142,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isFastPDVOpen, setIsFastPDVOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [autoBackups, setAutoBackups] = useState<AutoBackupRecord[]>([]);
 
   // Compact Sidebar state (Default true for sleek compact layout)
   const [isSidebarCompact, setIsSidebarCompact] = useState<boolean>(() => {
@@ -211,6 +237,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loadedReceivable,
         loadedPurchases,
         loadedAudit,
+        loadedPromotions,
+        loadedBackups,
       ] = await Promise.all([
         db.getSettings(),
         db.getAll<AppUser>('users'),
@@ -227,6 +255,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         db.getAll<AccountReceivable>('accountsReceivable'),
         db.getAll<Purchase>('purchases'),
         db.getAll<AuditLog>('auditLogs'),
+        db.getAll<Promotion>('promotions'),
+        db.getAutoBackups(),
       ]);
 
       setSettings(loadedSettings);
@@ -253,6 +283,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAccountsReceivable(loadedReceivable.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()));
       setPurchases(loadedPurchases.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       setAuditLogs(loadedAudit.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setPromotions(loadedPromotions);
+      setAutoBackups(loadedBackups);
     } catch (err) {
       console.error('Failed to load IndexedDB data:', err);
     } finally {
@@ -289,10 +321,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Configurações salvas com sucesso!', 'success');
   };
 
+  const hasPermission = useCallback(
+    (permission: keyof UserPermissions): boolean => {
+      if (currentUser.role === 'admin' || currentUser.role === 'gerente') return true;
+      return !!currentUser.permissions?.[permission];
+    },
+    [currentUser]
+  );
+
   const saveUser = async (user: AppUser) => {
-    await db.put('users', user);
+    const id = user.id || `user_${Date.now()}`;
+    const toSave = { ...user, id };
+    await db.put('users', toSave);
+    await db.logAudit(
+      'Usuário Salvo',
+      'Usuários',
+      `Usuário "${toSave.name}" (${toSave.role}) atualizado`,
+      toSave.id,
+      currentUser.name
+    );
     await refreshData();
-    showToast(`Usuário ${user.name} salvo com sucesso!`, 'success');
+    showToast(`Usuário ${toSave.name} salvo com sucesso!`, 'success');
+  };
+
+  const deleteUser = async (id: string) => {
+    if (users.length <= 1) {
+      showToast('O sistema deve possuir pelo menos um usuário administrador.', 'error');
+      return;
+    }
+    const target = users.find((u) => u.id === id);
+    await db.delete('users', id);
+    await db.logAudit('Usuário Removido', 'Usuários', `Usuário "${target?.name || id}" excluído`, id, currentUser.name);
+    await refreshData();
+    showToast('Usuário removido com sucesso.', 'info');
+  };
+
+  const savePromotion = async (promotion: Promotion): Promise<Promotion> => {
+    const id = promotion.id || `promo_${Date.now()}`;
+    const toSave: Promotion = {
+      ...promotion,
+      id,
+      createdAt: promotion.createdAt || new Date().toISOString(),
+    };
+    await db.put('promotions', toSave);
+    await db.logAudit('Promoção Salva', 'Marketing', `Promoção "${toSave.name}" (-${toSave.discountPercent}%)`, id, currentUser.name);
+    await refreshData();
+    showToast(`Promoção "${toSave.name}" salva com sucesso!`, 'success');
+    return toSave;
+  };
+
+  const deletePromotion = async (id: string) => {
+    await db.delete('promotions', id);
+    await refreshData();
+    showToast('Promoção removida.', 'info');
+  };
+
+  const createAutoBackupSnapshot = async (reason: string) => {
+    try {
+      const backup = await db.createAutoBackup(reason);
+      await updateSettings({ lastAutoBackupAt: backup.date });
+      await refreshData();
+      showToast(`Ponto de backup salvo com sucesso (${(backup.dataSize / 1024).toFixed(1)} KB)!`, 'success');
+    } catch {
+      showToast('Falha ao criar backup automático.', 'error');
+    }
+  };
+
+  const restoreFromAutoBackup = async (backupId: string) => {
+    const item = autoBackups.find((b) => b.id === backupId);
+    if (!item) throw new Error('Backup não encontrado');
+    await db.importBackup(item.jsonBackup);
+    await refreshData();
+    showToast(`Backup de ${new Date(item.date).toLocaleDateString()} restaurado com sucesso!`, 'success');
+  };
+
+  const deleteAutoBackup = async (backupId: string) => {
+    await db.deleteAutoBackup(backupId);
+    await refreshData();
+    showToast('Registro de backup removido.', 'info');
   };
 
   const currentCashSession = useMemo(() => {
@@ -365,22 +471,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const now = new Date().toISOString();
     const movId = `mov_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    const fullMovement: StockMovement = {
-      ...movement,
-      id: movId,
-      createdAt: now,
-      userName: currentUser.name,
-    };
 
     const targetProduct = products.find((p) => p.id === movement.productId);
     if (!targetProduct) {
       throw new Error('Produto não encontrado');
     }
 
+    // Safety fallback: prevent stock becoming 0 when returning or adding quantity
+    let calculatedNewStock = movement.newStock;
+    if (movement.quantity > 0 && movement.newStock === 0) {
+      calculatedNewStock = targetProduct.stock + movement.quantity;
+    }
+
+    const fullMovement: StockMovement = {
+      ...movement,
+      id: movId,
+      newStock: calculatedNewStock,
+      createdAt: now,
+      userName: currentUser.name,
+    };
+
     const updatedProduct: Product = {
       ...targetProduct,
-      stock: movement.newStock,
-      status: movement.newStock <= 0 ? 'esgotado' : targetProduct.status === 'esgotado' ? 'ativo' : targetProduct.status,
+      stock: calculatedNewStock,
+      status: calculatedNewStock <= 0 ? 'esgotado' : targetProduct.status === 'esgotado' ? 'ativo' : targetProduct.status,
       updatedAt: now,
     };
 
@@ -389,13 +503,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await db.logAudit(
       'Movimentação de Estoque',
       'Estoque',
-      `${movement.type.toUpperCase()}: ${movement.quantity > 0 ? '+' : ''}${movement.quantity} em ${targetProduct.name} (Saldo: ${movement.newStock}). Motivo: ${movement.reason}`,
+      `${movement.type.toUpperCase()}: ${movement.quantity > 0 ? '+' : ''}${movement.quantity} em ${targetProduct.name} (Saldo: ${calculatedNewStock}). Motivo: ${movement.reason}`,
       targetProduct.id,
       currentUser.name
     );
 
     await refreshData();
-    showToast(`Estoque de "${targetProduct.name}" atualizado para ${movement.newStock} un.`, 'success');
+    showToast(`Estoque de "${targetProduct.name}" atualizado para ${calculatedNewStock} un.`, 'success');
   };
 
   // Customers
@@ -405,6 +519,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const savedCustomer: Customer = {
       ...customer,
       id,
+      cashbackBalance: customer.cashbackBalance ?? 0,
+      creditBalance: customer.creditBalance ?? 0,
+      totalPurchasesCount: customer.totalPurchasesCount ?? 0,
+      totalSpent: customer.totalSpent ?? 0,
       createdAt: customer.createdAt || new Date().toISOString(),
     };
 
@@ -455,26 +573,93 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saleData: Omit<Sale, 'id' | 'saleNumber' | 'createdAt' | 'userName'> & { userName?: string }
   ): Promise<Sale> => {
     const now = new Date().toISOString();
-    const nextNumber = (sales.length + 1001).toString();
+
+    // 1. Safe incremental sale number
+    const numericSaleNumbers = sales
+      .map((s) => parseInt(s.saleNumber.replace(/\D/g, ''), 10))
+      .filter((n) => !isNaN(n));
+    const nextMax = numericSaleNumbers.length > 0 ? Math.max(...numericSaleNumbers) : 1000;
+    const nextNumber = (nextMax + 1).toString();
     const saleId = `sale_${Date.now()}`;
+
+    // 2. Pre-flight stock availability check (Kit and regular)
+    if (!settings.allowNegativeStock) {
+      for (const item of saleData.items) {
+        const product = await db.getById<Product>('products', item.productId);
+        if (product) {
+          if (product.isKit && product.kitComponents && product.kitComponents.length > 0) {
+            for (const comp of product.kitComponents) {
+              const compProduct = await db.getById<Product>('products', comp.productId);
+              const compRequired = comp.quantity * item.quantity;
+              if (compProduct && compProduct.stock < compRequired) {
+                throw new Error(
+                  `Estoque insuficiente de "${compProduct.name}" para o combo/kit "${product.name}". Saldo disponível: ${compProduct.stock}`
+                );
+              }
+            }
+          } else {
+            if (product.stock < item.quantity) {
+              throw new Error(
+                `Estoque insuficiente para o produto "${product.name}". Saldo disponível: ${product.stock}`
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Loyalty / Cashback calculation
+    let calculatedCashbackEarned = 0;
+    if (settings.cashbackEnabled && (settings.cashbackPercent || 0) > 0 && saleData.customerId) {
+      calculatedCashbackEarned = Math.round(saleData.total * ((settings.cashbackPercent || 0) / 100) * 100) / 100;
+    }
 
     const newSale: Sale = {
       ...saleData,
       id: saleId,
       saleNumber: nextNumber,
+      cashbackEarned: calculatedCashbackEarned,
       createdAt: now,
       userName: saleData.userName || currentUser.name,
+      sellerName: saleData.sellerName || saleData.userName || currentUser.name,
+      sellerId: saleData.sellerId || currentUser.id,
     };
 
-    // 1. Save Sale
+    // 4. Save Sale to DB
     await db.put('sales', newSale);
 
-    // 2. Reduce Stock for each item & combo/kit components
+    // 5. Update Customer loyalty, balance & history
+    if (saleData.customerId) {
+      const customer = await db.getById<Customer>('customers', saleData.customerId);
+      if (customer) {
+        const updatedCashback = Math.max(
+          0,
+          Math.round(
+            ((customer.cashbackBalance || 0) + calculatedCashbackEarned - (saleData.cashbackUsed || 0)) * 100
+          ) / 100
+        );
+        const updatedCredit = Math.max(
+          0,
+          Math.round(((customer.creditBalance || 0) - (saleData.creditUsed || 0)) * 100) / 100
+        );
+
+        await db.put('customers', {
+          ...customer,
+          cashbackBalance: updatedCashback,
+          creditBalance: updatedCredit,
+          totalPurchasesCount: (customer.totalPurchasesCount || 0) + 1,
+          totalSpent: Math.round(((customer.totalSpent || 0) + saleData.total) * 100) / 100,
+          lastPurchaseDate: now,
+        });
+      }
+    }
+
+    // 6. Reduce Stock for each item & combo/kit components
     for (const item of saleData.items) {
       const product = await db.getById<Product>('products', item.productId);
       if (product) {
         if (product.isKit && product.kitComponents && product.kitComponents.length > 0) {
-          // It's a combo/kit: reduce components
+          // Combo/kit: reduce components
           for (const comp of product.kitComponents) {
             const compProduct = await db.getById<Product>('products', comp.productId);
             if (compProduct) {
@@ -532,7 +717,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // 3. If Cash register is open, update session and add movement
+    // 7. Cash register session updates
     if (currentCashSession) {
       let updatedTotalCash = currentCashSession.totalCash;
       let updatedTotalPix = currentCashSession.totalPix;
@@ -592,7 +777,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newSale;
   };
 
-  // Sale Cancellation with stock reversal
+  // Sale Cancellation with complete stock and kit reversal
   const cancelSale = async (saleId: string, reason: string) => {
     const sale = sales.find((s) => s.id === saleId);
     if (!sale) return;
@@ -603,37 +788,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const now = new Date().toISOString();
 
-    // 1. Revert stock
+    // 1. Revert stock for each item & combo/kit components
     for (const item of sale.items) {
       const product = await db.getById<Product>('products', item.productId);
       if (product) {
-        const restoredStock = product.stock + item.quantity;
-        await db.put('products', {
-          ...product,
-          stock: restoredStock,
-          status: restoredStock > 0 && product.status === 'esgotado' ? 'ativo' : product.status,
-          updatedAt: now,
-        });
+        if (product.isKit && product.kitComponents && product.kitComponents.length > 0) {
+          // Revert each kit component
+          for (const comp of product.kitComponents) {
+            const compProduct = await db.getById<Product>('products', comp.productId);
+            if (compProduct) {
+              const compRestoredQty = comp.quantity * item.quantity;
+              const newCompStock = compProduct.stock + compRestoredQty;
+              await db.put('products', {
+                ...compProduct,
+                stock: newCompStock,
+                status: newCompStock > 0 && compProduct.status === 'esgotado' ? 'ativo' : compProduct.status,
+                updatedAt: now,
+              });
+              await db.put('stockMovements', {
+                id: `mov_${Date.now()}_cancel_${compProduct.id}`,
+                date: now,
+                productId: compProduct.id,
+                productName: compProduct.name,
+                sku: compProduct.sku,
+                type: 'cancelamento',
+                quantity: compRestoredQty,
+                previousStock: compProduct.stock,
+                newStock: newCompStock,
+                reason: `Cancelamento Venda #${sale.saleNumber} (Componente do Kit ${product.name})`,
+                referenceId: sale.id,
+                userName: currentUser.name,
+                createdAt: now,
+              } as StockMovement);
+            }
+          }
+        } else {
+          // Regular product
+          const restoredStock = product.stock + item.quantity;
+          await db.put('products', {
+            ...product,
+            stock: restoredStock,
+            status: restoredStock > 0 && product.status === 'esgotado' ? 'ativo' : product.status,
+            updatedAt: now,
+          });
 
-        await db.put('stockMovements', {
-          id: `mov_${Date.now()}_cancel_${product.id}`,
-          date: now,
-          productId: product.id,
-          productName: product.name,
-          sku: product.sku,
-          type: 'cancelamento',
-          quantity: item.quantity,
-          previousStock: product.stock,
-          newStock: restoredStock,
-          reason: `Cancelamento da Venda #${sale.saleNumber}. Motivo: ${reason}`,
-          referenceId: sale.id,
-          userName: currentUser.name,
-          createdAt: now,
-        } as StockMovement);
+          await db.put('stockMovements', {
+            id: `mov_${Date.now()}_cancel_${product.id}`,
+            date: now,
+            productId: product.id,
+            productName: product.name,
+            sku: product.sku,
+            type: 'cancelamento',
+            quantity: item.quantity,
+            previousStock: product.stock,
+            newStock: restoredStock,
+            reason: `Cancelamento da Venda #${sale.saleNumber}. Motivo: ${reason}`,
+            referenceId: sale.id,
+            userName: currentUser.name,
+            createdAt: now,
+          } as StockMovement);
+        }
       }
     }
 
-    // 2. Mark sale as cancelled
+    // 2. Revert Customer Cashback / Credit
+    if (sale.customerId) {
+      const customer = await db.getById<Customer>('customers', sale.customerId);
+      if (customer) {
+        let newCashback = customer.cashbackBalance || 0;
+        if (sale.cashbackEarned && sale.cashbackEarned > 0) {
+          newCashback = Math.max(0, newCashback - sale.cashbackEarned);
+        }
+        if (sale.cashbackUsed && sale.cashbackUsed > 0) {
+          newCashback += sale.cashbackUsed;
+        }
+
+        let newCredit = customer.creditBalance || 0;
+        if (sale.creditUsed && sale.creditUsed > 0) {
+          newCredit += sale.creditUsed;
+        }
+
+        await db.put('customers', {
+          ...customer,
+          cashbackBalance: Math.round(newCashback * 100) / 100,
+          creditBalance: Math.round(newCredit * 100) / 100,
+          totalSpent: Math.max(0, Math.round(((customer.totalSpent || 0) - sale.total) * 100) / 100),
+          totalPurchasesCount: Math.max(0, (customer.totalPurchasesCount || 1) - 1),
+        });
+      }
+    }
+
+    // 3. Mark sale as cancelled
     const updatedSale: Sale = {
       ...sale,
       status: 'cancelled',
@@ -642,25 +887,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     await db.put('sales', updatedSale);
 
-    // 3. Cash adjustment if needed
-    if (currentCashSession && sale.paymentMethod === 'dinheiro') {
-      await db.put('cashMovements', {
-        id: `cmov_${Date.now()}_cancel`,
-        sessionId: currentCashSession.id,
-        date: now,
-        type: 'ajuste',
-        amount: -sale.total,
-        method: 'dinheiro',
-        reason: `Estorno Venda Cancelada #${sale.saleNumber}`,
-        userName: currentUser.name,
-        createdAt: now,
-      } as CashMovement);
+    // 4. Consistent Cash Adjustment across all payment methods
+    if (currentCashSession) {
+      if (sale.paymentMethod === 'dinheiro') {
+        await db.put('cashMovements', {
+          id: `cmov_${Date.now()}_cancel`,
+          sessionId: currentCashSession.id,
+          date: now,
+          type: 'ajuste',
+          amount: -sale.total,
+          method: 'dinheiro',
+          reason: `Estorno Venda Cancelada #${sale.saleNumber}`,
+          userName: currentUser.name,
+          createdAt: now,
+        } as CashMovement);
 
-      await db.put('cashSessions', {
-        ...currentCashSession,
-        totalCash: Math.max(0, currentCashSession.totalCash - sale.total),
-        grandTotal: Math.max(0, currentCashSession.grandTotal - sale.total),
-      });
+        await db.put('cashSessions', {
+          ...currentCashSession,
+          totalCash: Math.max(0, currentCashSession.totalCash - sale.total),
+          grandTotal: Math.max(0, currentCashSession.grandTotal - sale.total),
+        });
+      } else if (sale.paymentMethod === 'pix') {
+        await db.put('cashSessions', {
+          ...currentCashSession,
+          totalPix: Math.max(0, currentCashSession.totalPix - sale.total),
+          grandTotal: Math.max(0, currentCashSession.grandTotal - sale.total),
+        });
+      } else if (sale.paymentMethod.includes('credito') || sale.paymentMethod === 'debito') {
+        await db.put('cashSessions', {
+          ...currentCashSession,
+          totalCard: Math.max(0, currentCashSession.totalCard - sale.total),
+          grandTotal: Math.max(0, currentCashSession.grandTotal - sale.total),
+        });
+      } else {
+        await db.put('cashSessions', {
+          ...currentCashSession,
+          totalOther: Math.max(0, currentCashSession.totalOther - sale.total),
+          grandTotal: Math.max(0, currentCashSession.grandTotal - sale.total),
+        });
+      }
     }
 
     await db.logAudit(
@@ -673,6 +938,113 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     await refreshData();
     showToast(`Venda #${sale.saleNumber} cancelada e estoque estornado!`, 'info');
+  };
+
+  // Dedicated Product Return / Exchange Processor
+  const processItemReturn = async (
+    saleId: string,
+    itemIndex: number,
+    returnQty: number,
+    reason: string,
+    refundMethod: 'credito_cliente' | 'estorno_dinheiro' | 'estorno_pix' | 'troca_produto' = 'credito_cliente'
+  ) => {
+    const sale = sales.find((s) => s.id === saleId);
+    if (!sale) throw new Error('Venda não encontrada');
+    const item = sale.items[itemIndex];
+    if (!item) throw new Error('Item não encontrado na venda');
+    if (returnQty <= 0 || returnQty > item.quantity) {
+      throw new Error('Quantidade inválida para devolução');
+    }
+
+    const now = new Date().toISOString();
+    const product = await db.getById<Product>('products', item.productId);
+
+    // 1. Restore stock (kit components or regular product)
+    if (product) {
+      if (product.isKit && product.kitComponents && product.kitComponents.length > 0) {
+        // Restore kit components
+        for (const comp of product.kitComponents) {
+          const compProduct = await db.getById<Product>('products', comp.productId);
+          if (compProduct) {
+            const compRestoredQty = comp.quantity * returnQty;
+            const newCompStock = compProduct.stock + compRestoredQty;
+            await db.put('products', {
+              ...compProduct,
+              stock: newCompStock,
+              status: newCompStock > 0 && compProduct.status === 'esgotado' ? 'ativo' : compProduct.status,
+              updatedAt: now,
+            });
+            await db.put('stockMovements', {
+              id: `mov_${Date.now()}_ret_${compProduct.id}`,
+              date: now,
+              productId: compProduct.id,
+              productName: compProduct.name,
+              sku: compProduct.sku,
+              type: 'devolucao',
+              quantity: compRestoredQty,
+              previousStock: compProduct.stock,
+              newStock: newCompStock,
+              reason: `Devolução Venda #${sale.saleNumber} (${returnQty} un do Kit ${product.name}). Motivo: ${reason}`,
+              referenceId: sale.id,
+              userName: currentUser.name,
+              createdAt: now,
+            } as StockMovement);
+          }
+        }
+      } else {
+        // Regular product: calculate correct newStock
+        const newStock = product.stock + returnQty;
+        await db.put('products', {
+          ...product,
+          stock: newStock,
+          status: newStock > 0 && product.status === 'esgotado' ? 'ativo' : product.status,
+          updatedAt: now,
+        });
+        await db.put('stockMovements', {
+          id: `mov_${Date.now()}_ret_${product.id}`,
+          date: now,
+          productId: product.id,
+          productName: product.name,
+          sku: product.sku,
+          type: 'devolucao',
+          quantity: returnQty,
+          previousStock: product.stock,
+          newStock,
+          reason: `Devolução Venda #${sale.saleNumber} (${returnQty} un). Motivo: ${reason}`,
+          referenceId: sale.id,
+          userName: currentUser.name,
+          createdAt: now,
+        } as StockMovement);
+      }
+    }
+
+    // 2. Calculate Refund Value: (item.unitPrice * returnQty)
+    const refundAmount = Math.round(item.unitPrice * returnQty * 100) / 100;
+
+    // 3. Process Financial Resolution
+    if (refundMethod === 'credito_cliente' && sale.customerId) {
+      const customer = await db.getById<Customer>('customers', sale.customerId);
+      if (customer) {
+        const newCredit = Math.round(((customer.creditBalance || 0) + refundAmount) * 100) / 100;
+        await db.put('customers', {
+          ...customer,
+          creditBalance: newCredit,
+        });
+      }
+    } else if (refundMethod === 'estorno_dinheiro' && currentCashSession) {
+      await addCashMovement('despesa', refundAmount, `Estorno Devolução Venda #${sale.saleNumber}`, 'dinheiro');
+    }
+
+    await db.logAudit(
+      'Devolução de Produto',
+      'Vendas',
+      `Devolução de ${returnQty}x ${item.name} da Venda #${sale.saleNumber} (R$ ${refundAmount.toFixed(2)} - ${refundMethod}). Motivo: ${reason}`,
+      sale.id,
+      currentUser.name
+    );
+
+    await refreshData();
+    showToast(`Devolução de ${returnQty}x "${item.name}" processada com sucesso!`, 'success');
   };
 
   // Orders (Instagram / WhatsApp)
@@ -1016,6 +1388,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentUser.name
     );
 
+    // Auto-backup snapshot on cash close
+    if (settings.autoBackupEnabled !== false) {
+      try {
+        await db.createAutoBackup(`Fechamento de Caixa (${closedSession.openedBy})`);
+      } catch (err) {
+        console.warn('Auto backup on cash close failed:', err);
+      }
+    }
+
     await refreshData();
     showToast('Caixa fechado com sucesso!', 'info');
     return closedSession;
@@ -1098,6 +1479,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser,
         users,
         saveUser,
+        deleteUser,
+        hasPermission,
         activeTab,
         setActiveTab,
         isFastPDVOpen,
@@ -1115,6 +1498,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         accountsReceivable,
         purchases,
         auditLogs,
+        promotions,
+        autoBackups,
         refreshData,
         saveProduct,
         deleteProduct,
@@ -1125,6 +1510,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteSupplier,
         completeSale,
         cancelSale,
+        processItemReturn,
         saveOrder,
         updateOrderStatus,
         deleteOrder,
@@ -1136,6 +1522,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveAccountReceivable,
         markAccountReceivableReceived,
         deleteAccountReceivable,
+        savePromotion,
+        deletePromotion,
+        createAutoBackupSnapshot,
+        restoreFromAutoBackup,
+        deleteAutoBackup,
         currentCashSession,
         openCashSession,
         closeCashSession,
@@ -1152,6 +1543,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSidebarCompact,
         setIsSidebarCompact,
         toggleSidebarCompact,
+        isLocked,
+        setIsLocked,
       }}
     >
       {children}

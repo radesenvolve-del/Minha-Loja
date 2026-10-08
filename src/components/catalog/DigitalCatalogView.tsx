@@ -26,7 +26,7 @@ import { InstagramCardGeneratorModal } from './InstagramCardGeneratorModal';
 import { JewelryCategoryGraphic } from '../common/JewelryCategoryGraphic';
 
 export const DigitalCatalogView: React.FC = () => {
-  const { products, settings, showToast, selectedCategory, setSelectedCategory } = useApp();
+  const { products, settings, saveOrder, showToast, selectedCategory, setSelectedCategory } = useApp();
   const [search, setSearch] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
   const [catalogQrUrl, setCatalogQrUrl] = useState('');
@@ -124,7 +124,49 @@ export const DigitalCatalogView: React.FC = () => {
     lines.push(`*Total Estimado: ${formatBRL(totalVal)}*`);
     lines.push(`\nPor favor, informe a disponibilidade para envio/retirada! Obrigado! ✨`);
 
+    // Register online order directly in the store Kanban pipeline
+    try {
+      const orderItems = bagItems.map((item) => {
+        const { price } = getEffectiveProductPrice(item);
+        return {
+          productId: item.id,
+          name: item.name,
+          sku: item.sku,
+          unitPrice: price,
+          originalPrice: item.price,
+          cost: item.cost,
+          minPrice: item.minPrice,
+          quantity: item.bagQty,
+          discount: 0,
+          total: price * item.bagQty,
+        };
+      });
+
+      const orderNumber = `${Math.floor(1000 + Math.random() * 9000)}`;
+      const now = new Date().toISOString();
+      saveOrder({
+        id: `ord_${Date.now()}`,
+        orderNumber,
+        date: now,
+        customerName: 'Cliente Online (Catálogo)',
+        items: orderItems,
+        subtotal: totalVal,
+        discount: 0,
+        shipping: 0,
+        total: totalVal,
+        origin: 'whatsapp',
+        status: 'novo',
+        notes: `Pedido #${orderNumber} gerado automaticamente via Catálogo Digital`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      showToast(`Pedido #${orderNumber} adicionado ao Kanban de Pedidos e preparado no WhatsApp!`, 'success');
+    } catch {
+      // Fallback: still open WhatsApp even if local order save had an issue
+    }
+
     openWhatsApp(settings.whatsapp || '', lines.join('\n'));
+    setCustomerBag({});
   };
 
   const bagCount = Object.keys(customerBag).length;

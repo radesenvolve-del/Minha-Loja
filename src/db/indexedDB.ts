@@ -3,11 +3,13 @@ import {
   AccountReceivable,
   AppUser,
   AuditLog,
+  AutoBackupRecord,
   CashMovement,
   CashSession,
   Customer,
   Order,
   Product,
+  Promotion,
   Purchase,
   Quote,
   Sale,
@@ -31,7 +33,7 @@ import {
 } from './seedData';
 
 const DB_NAME = 'MinhaLojaDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export const STORE_NAMES = [
   'products',
@@ -49,6 +51,8 @@ export const STORE_NAMES = [
   'auditLogs',
   'users',
   'settings',
+  'promotions',
+  'backups',
 ] as const;
 
 export type StoreName = (typeof STORE_NAMES)[number];
@@ -257,13 +261,14 @@ class IndexedDBManager {
    */
   async exportBackup(): Promise<string> {
     const backup: Record<string, unknown> = {
-      version: 1,
+      version: 2,
       appName: 'Minha Loja',
       exportedAt: new Date().toISOString(),
       data: {},
     };
 
     for (const storeName of STORE_NAMES) {
+      if (storeName === 'backups') continue; // Avoid recursive backup records
       const items = await this.getAll(storeName);
       (backup.data as Record<string, unknown>)[storeName] = items;
     }
@@ -272,17 +277,53 @@ class IndexedDBManager {
   }
 
   /**
-   * Import complete database from JSON
+   * Validate backup structure and return counts summary
+   */
+  validateBackup(jsonString: string): { valid: boolean; counts?: Record<string, number>; error?: string } {
+    try {
+      const parsed = JSON.parse(jsonString);
+      if (!parsed || typeof parsed !== 'object' || !parsed.data) {
+        return { valid: false, error: 'Arquivo inválido: estrutura "data" não encontrada.' };
+      }
+
+      const counts: Record<string, number> = {};
+      let totalRecords = 0;
+
+      for (const storeName of STORE_NAMES) {
+        if (storeName === 'backups') continue;
+        const items = parsed.data[storeName];
+        if (Array.isArray(items)) {
+          counts[storeName] = items.length;
+          totalRecords += items.length;
+        } else {
+          counts[storeName] = 0;
+        }
+      }
+
+      if (totalRecords === 0 && !parsed.data.settings) {
+        return { valid: false, error: 'O arquivo não contém registros válidos para restauração.' };
+      }
+
+      return { valid: true, counts };
+    } catch (err: any) {
+      return { valid: false, error: `Erro ao analisar JSON: ${err.message}` };
+    }
+  }
+
+  /**
+   * Import complete database from JSON with safe rollback check
    */
   async importBackup(jsonString: string): Promise<{ success: boolean; counts: Record<string, number> }> {
-    const parsed = JSON.parse(jsonString);
-    if (!parsed || !parsed.data) {
-      throw new Error('Arquivo de backup inválido.');
+    const validation = this.validateBackup(jsonString);
+    if (!validation.valid || !validation.counts) {
+      throw new Error(validation.error || 'Arquivo de backup inválido.');
     }
 
+    const parsed = JSON.parse(jsonString);
     const counts: Record<string, number> = {};
 
     for (const storeName of STORE_NAMES) {
+      if (storeName === 'backups') continue;
       const items = parsed.data[storeName];
       if (Array.isArray(items)) {
         await this.clear(storeName);
@@ -296,6 +337,50 @@ class IndexedDBManager {
     await this.logAudit('Restauração', 'Backup', 'Backup importado com sucesso', undefined, 'Administrador');
 
     return { success: true, counts };
+  }
+
+  /**
+   * Create an automatic snapshot backup into IndexedDB
+   */
+  async createAutoBackup(reason: string): Promise<AutoBackupRecord> {
+    const json = await this.exportBackup();
+    const id = `backup_${Date.now()}`;
+    const now = new Date().toISOString();
+
+    const counts = this.validateBackup(json).counts || {};
+    const totalItems = Object.values(counts).reduce((a, b) => a + b, 0);
+
+    const record: AutoBackupRecord = {
+      id,
+      date: now,
+      reason,
+      dataSize: new Blob([json]).size,
+      recordsCount: totalItems,
+      jsonBackup: json,
+    };
+
+    await this.put('backups', record as any);
+
+    // Keep only the most recent 12 auto-backups to preserve storage
+    const allBackups = await this.getAll<AutoBackupRecord>('backups');
+    if (allBackups.length > 12) {
+      const sorted = allBackups.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const toDelete = sorted.slice(0, sorted.length - 12);
+      for (const item of toDelete) {
+        await this.delete('backups', item.id);
+      }
+    }
+
+    return record;
+  }
+
+  async getAutoBackups(): Promise<AutoBackupRecord[]> {
+    const list = await this.getAll<AutoBackupRecord>('backups');
+    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
+  async deleteAutoBackup(id: string): Promise<void> {
+    await this.delete('backups', id);
   }
 }
 

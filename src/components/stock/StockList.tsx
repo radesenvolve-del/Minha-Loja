@@ -11,10 +11,13 @@ import {
   Sparkles,
   TrendingDown,
   Search,
+  MessageCircle,
+  Flame,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Product, StockMovement } from '../../types';
 import { formatBRL, formatDateTime, getDaysDiff } from '../../utils/formatters';
+import { openWhatsApp } from '../../utils/whatsapp';
 
 interface StockListProps {
   onOpenMovementModal: (product?: Product) => void;
@@ -25,10 +28,41 @@ export const StockList: React.FC<StockListProps> = ({
   onOpenMovementModal,
   onOpenNewProduct,
 }) => {
-  const { products, stockMovements, sales, selectedCategory } = useApp();
+  const { products, stockMovements, sales, suppliers, saveProduct, showToast, selectedCategory, settings } = useApp();
   const [activeTab, setActiveTab] = useState<'estoque' | 'historico' | 'comprar' | 'parados'>('estoque');
   const [search, setSearch] = useState('');
   const [idleDaysThreshold, setIdleDaysThreshold] = useState<number>(30);
+
+  const handleOrderSupplierWhatsApp = (product: Product, quantityToOrder: number) => {
+    const supplier = suppliers.find((s) => s.id === product.supplierId || s.name === product.supplierName);
+    const phone = supplier?.whatsapp || supplier?.phone || '';
+
+    const text = `📦 *Olá${supplier ? `, ${supplier.name}` : ''}! Aqui é da ${settings.storeName}.*\n\nGostaria de fazer uma cotação/pedido de reposição para o seguinte item:\n▪️ *Produto:* ${product.name}\n▪️ *SKU:* ${product.sku}\n▪️ *Quantidade:* ${quantityToOrder} ${product.unit}\n▪️ *Último Custo:* ${formatBRL(product.cost)}\n\nPoderia confirmar a disponibilidade e o prazo de entrega? Muito obrigado! ✨`;
+
+    if (!phone) {
+      showToast('Fornecedor não possui telefone ou WhatsApp cadastrado. Copie a mensagem ou cadastre o contato no menu Fornecedores.', 'warning');
+      navigator.clipboard.writeText(text);
+      return;
+    }
+
+    openWhatsApp(phone, text);
+    showToast(`Pedido de reposição preparado para o WhatsApp de ${supplier?.name || 'Fornecedor'}!`, 'success');
+  };
+
+  const handleQuickClearance = async (product: Product) => {
+    const promoPrice = Math.round(product.price * 0.75 * 100) / 100; // 25% OFF
+    const today = new Date().toISOString().slice(0, 10);
+    const in15Days = new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10);
+
+    await saveProduct({
+      ...product,
+      promotionalPrice: promoPrice,
+      promoStartDate: today,
+      promoEndDate: in15Days,
+    });
+
+    showToast(`Queima de Estoque (-25% OFF) ativada para "${product.name}"! Preço promocional: ${formatBRL(promoPrice)}`, 'success');
+  };
 
   // Filtered inventory
   const filteredProducts = useMemo(() => {
@@ -358,12 +392,22 @@ export const StockList: React.FC<StockListProps> = ({
                             {formatBRL(estimatedCost)}
                           </td>
                           <td className="p-3 text-right">
-                            <button
-                              onClick={() => onOpenMovementModal(p)}
-                              className="btn-gold !py-1 !px-3 !text-xs cursor-pointer shadow-xs"
-                            >
-                              + Registrar Entrada
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleOrderSupplierWhatsApp(p, suggestQty)}
+                                className="btn-emerald !py-1 !px-2.5 !text-xs cursor-pointer shadow-xs"
+                                title="Enviar pedido de compra no WhatsApp do fornecedor"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                <span>Pedir no Zap</span>
+                              </button>
+                              <button
+                                onClick={() => onOpenMovementModal(p)}
+                                className="btn-gold !py-1 !px-3 !text-xs cursor-pointer shadow-xs"
+                              >
+                                + Entrada
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -426,27 +470,24 @@ export const StockList: React.FC<StockListProps> = ({
                         Estoque parado: <strong>{p.stock} {p.unit}</strong> · Capital parado:{' '}
                         <strong className="text-rose-600 font-mono">{formatBRL(p.stock * p.cost)}</strong>
                       </p>
-                      {/* Strategic suggestions */}
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <span className="text-[11px] text-[#8E8071] font-semibold">Sugestões:</span>
-                        <span className="badge-gold">
-                          🔥 Queima de Estoque (-20%)
-                        </span>
-                        <span className="badge-silver">
-                          🎁 Criar Kit/Combo Promocional
-                        </span>
-                        <span className="badge-gold">
-                          📸 Fazer Stories/Reels no Instagram
-                        </span>
-                      </div>
                     </div>
 
-                    <button
-                      onClick={() => onOpenMovementModal(p)}
-                      className="btn-silver !py-1.5 !px-3.5 !text-xs cursor-pointer shrink-0 shadow-2xs"
-                    >
-                      Ajustar Estoque
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleQuickClearance(p)}
+                        className="btn-gold !py-1.5 !px-3 !text-xs cursor-pointer shadow-xs"
+                        title="Ativar preço promocional com 25% de desconto para girar a peça"
+                      >
+                        <Flame className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Queima (-25%)</span>
+                      </button>
+                      <button
+                        onClick={() => onOpenMovementModal(p)}
+                        className="btn-silver !py-1.5 !px-3 !text-xs cursor-pointer shadow-2xs"
+                      >
+                        Ajustar
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

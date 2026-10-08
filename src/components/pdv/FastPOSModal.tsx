@@ -28,6 +28,7 @@ import { generatePixPayload, generateQRCode } from '../../utils/barcodes';
 import { CameraScannerModal } from '../common/CameraScannerModal';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { ReceiptModal } from './ReceiptModal';
+import { AdminApprovalModal } from '../common/AdminApprovalModal';
 
 interface FastPOSModalProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ export const FastPOSModal: React.FC<FastPOSModalProps> = ({ isOpen, onClose }) =
     saveCustomer,
     saveProduct,
     showToast,
+    currentUser,
   } = useApp();
 
   // Mobile View Format (Catalog vs Cart)
@@ -76,6 +78,12 @@ export const FastPOSModal: React.FC<FastPOSModalProps> = ({ isOpen, onClose }) =
   // Confirmation for Below Minimum Price Discount
   const [showBelowMinModal, setShowBelowMinModal] = useState(false);
   const [pendingSaleFinish, setPendingSaleFinish] = useState(false);
+
+  // Admin Authorization State for Discounts & Minimum Price
+  const [isAdminApprovalOpen, setIsAdminApprovalOpen] = useState(false);
+  const [adminApprovalReason, setAdminApprovalReason] = useState('');
+  const [isApprovedByAdmin, setIsApprovedByAdmin] = useState(false);
+  const [approvedAdminName, setApprovedAdminName] = useState<string | undefined>();
 
   // Completed Receipt Modal
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
@@ -237,8 +245,28 @@ export const FastPOSModal: React.FC<FastPOSModalProps> = ({ isOpen, onClose }) =
       return;
     }
 
-    // Check minimum price safety rule (Section 15)
-    if (isBelowMinimumPrice && !pendingSaleFinish) {
+    // Check minimum price & discount safety rules
+    const currentDiscountPercent = subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
+    const maxDiscountAllowed = currentUser.permissions?.maxDiscountPercent ?? settings.maxSellerDiscountPercent ?? 10;
+    const isDiscountAboveLimit = currentDiscountPercent > maxDiscountAllowed;
+    const isBelowMin = isBelowMinimumPrice && settings.requireAdminPinForBelowMinPrice !== false;
+
+    const needsAdminAuth =
+      currentUser.role !== 'admin' &&
+      currentUser.role !== 'gerente' &&
+      (isDiscountAboveLimit || isBelowMin);
+
+    if (needsAdminAuth && !isApprovedByAdmin) {
+      setAdminApprovalReason(
+        isDiscountAboveLimit
+          ? `Desconto de ${currentDiscountPercent.toFixed(1)}% ultrapassa o limite máximo permitido (${maxDiscountAllowed}%).`
+          : `Valor total abaixo do preço mínimo / margem de segurança da loja.`
+      );
+      setIsAdminApprovalOpen(true);
+      return;
+    }
+
+    if (isBelowMinimumPrice && !pendingSaleFinish && !isApprovedByAdmin) {
       setShowBelowMinModal(true);
       return;
     }
@@ -253,6 +281,7 @@ export const FastPOSModal: React.FC<FastPOSModalProps> = ({ isOpen, onClose }) =
         discountType,
         discountValue,
         discountAmount,
+        adminApprovedBy: approvedAdminName,
         shipping,
         fees: 0,
         total,
@@ -271,6 +300,8 @@ export const FastPOSModal: React.FC<FastPOSModalProps> = ({ isOpen, onClose }) =
       setShipping(0);
       setCashAmountPaid(0);
       setPendingSaleFinish(false);
+      setIsApprovedByAdmin(false);
+      setApprovedAdminName(undefined);
       setCompletedSale(sale);
     } catch (err: any) {
       showToast(err.message || 'Erro ao finalizar venda.', 'error');
@@ -863,6 +894,23 @@ export const FastPOSModal: React.FC<FastPOSModalProps> = ({ isOpen, onClose }) =
         description={`O desconto aplicado faz o valor total (R$ ${total.toFixed(2)}) ficar abaixo do preço mínimo de custo da loja (R$ ${totalMinPrice.toFixed(2)}). Você deseja autorizar a venda com margem negativa mesmo assim?`}
         confirmText="Sim, autorizar desconto"
         variant="warning"
+      />
+
+      {/* Admin Authorization Modal for Discount / Minimum Price */}
+      <AdminApprovalModal
+        isOpen={isAdminApprovalOpen}
+        onClose={() => setIsAdminApprovalOpen(false)}
+        onApproved={(approver) => {
+          setIsApprovedByAdmin(true);
+          setApprovedAdminName(approver.name);
+          setIsAdminApprovalOpen(false);
+          // Automatically finish sale after admin approval
+          setTimeout(() => {
+            handleProceedToFinish();
+          }, 100);
+        }}
+        title="Autorização de Desconto / Preço"
+        description={adminApprovalReason}
       />
 
       {/* Sale Finished Receipt Modal */}

@@ -39,7 +39,7 @@ interface MenuDrawerProps {
 interface MenuItem {
   id: ActiveTab;
   label: string;
-  icon: React.FC<{ className?: string }>;
+  icon: React.FC<{ className?: string; strokeWidth?: number }>;
   badge?: number | string;
   badgeClass?: string;
   description: string;
@@ -122,6 +122,12 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
           badgeClass: 'badge-gold',
           description: 'Vitrine online e gerador de cards de venda',
         },
+        {
+          id: 'promotions',
+          label: 'Promoções / Queima de Estoque',
+          icon: Tag,
+          description: 'Campanhas promocionais com desconto por período',
+        },
       ],
     },
     {
@@ -190,6 +196,12 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
           description: 'Histórico de compras e CRM por WhatsApp',
         },
         {
+          id: 'crm',
+          label: 'CRM / Fidelidade & Metas',
+          icon: Sparkles,
+          description: 'Aniversariantes do mês, cashback e comissões',
+        },
+        {
           id: 'suppliers',
           label: 'Fornecedores',
           icon: Truck,
@@ -205,6 +217,18 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
           label: 'Visão Geral / Métricas',
           icon: LayoutDashboard,
           description: 'Painel com resumos e gráficos da loja',
+        },
+        {
+          id: 'sync',
+          label: 'Sincronizar Dispositivos',
+          icon: ArrowDownLeft,
+          description: 'Sincronização P2P e QR Code gratuita',
+        },
+        {
+          id: 'audit',
+          label: 'Auditoria & Logs',
+          icon: Shield,
+          description: 'Histórico completo de alterações e acessos',
         },
         {
           id: 'settings',

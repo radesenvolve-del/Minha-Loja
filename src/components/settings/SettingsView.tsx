@@ -27,9 +27,16 @@ import {
   Image as ImageIcon,
   Upload,
   Trash2,
+  Eye,
+  EyeOff,
+  Lock,
+  Plus,
+  Edit2,
+  ShieldAlert,
+  KeyRound,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { MarkupMethod, RoundingMethod } from '../../types';
+import { MarkupMethod, RoundingMethod, AppUser, UserRole, UserPermissions } from '../../types';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { formatBRL } from '../../utils/formatters';
 import sampleBoutiqueLogo from '../../assets/images/minha_loja_logo_1791030644359.jpg';
@@ -40,6 +47,7 @@ export const SettingsView: React.FC = () => {
     updateSettings,
     users,
     saveUser,
+    deleteUser,
     currentUser,
     loadDemoData,
     clearAllData,
@@ -117,6 +125,129 @@ export const SettingsView: React.FC = () => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showDemoConfirm, setShowDemoConfirm] = useState(false);
 
+  // Advanced Security & Pricing states
+  const [maxSellerDiscount, setMaxSellerDiscount] = useState(settings.maxSellerDiscountPercent || 10);
+  const [requireAdminPinCancel, setRequireAdminPinCancel] = useState(settings.requireAdminPinForCancel ?? true);
+  const [requireAdminPinBelowMin, setRequireAdminPinBelowMin] = useState(settings.requireAdminPinForBelowMinPrice ?? true);
+  const [cashbackEnabled, setCashbackEnabled] = useState(settings.cashbackEnabled ?? false);
+  const [cashbackPercent, setCashbackPercent] = useState(settings.cashbackPercent || 3);
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(settings.autoBackupEnabled ?? true);
+  const [autoBackupFrequency, setAutoBackupFrequency] = useState(settings.autoBackupFrequency || 'on_cash_close');
+
+  // User management states
+  const [showPinMap, setShowPinMap] = useState<Record<string, boolean>>({});
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
+
+  // Form fields for user modal
+  const [userName, setUserName] = useState('');
+  const [userUsername, setUserUsername] = useState('');
+  const [userPin, setUserPin] = useState('');
+  const [showModalPin, setShowModalPin] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>('vendedor');
+  const [userCommission, setUserCommission] = useState<number>(5);
+  const [userTarget, setUserTarget] = useState<number>(15000);
+  const [userPermissions, setUserPermissions] = useState<UserPermissions>({
+    products: true,
+    stock: true,
+    sales: true,
+    financial: false,
+    reports: false,
+    customers: true,
+    settings: false,
+    canCancelSales: false,
+    canManualStockAdjust: false,
+    canViewCostAndProfit: false,
+  });
+
+  const handleOpenUserModal = (u?: AppUser) => {
+    if (u) {
+      setEditingUser(u);
+      setUserName(u.name);
+      setUserUsername(u.username);
+      setUserPin(u.pin || '');
+      setUserRole(u.role);
+      setUserCommission(u.commissionPercent || 0);
+      setUserTarget(u.monthlySalesTarget || 15000);
+      setUserPermissions({
+        products: !!u.permissions?.products,
+        stock: !!u.permissions?.stock,
+        sales: !!u.permissions?.sales,
+        financial: !!u.permissions?.financial,
+        reports: !!u.permissions?.reports,
+        customers: !!u.permissions?.customers,
+        settings: !!u.permissions?.settings,
+        canCancelSales: !!u.permissions?.canCancelSales,
+        canManualStockAdjust: !!u.permissions?.canManualStockAdjust,
+        canViewCostAndProfit: !!u.permissions?.canViewCostAndProfit,
+      });
+    } else {
+      setEditingUser(null);
+      setUserName('');
+      setUserUsername('');
+      setUserPin('');
+      setUserRole('vendedor');
+      setUserCommission(5);
+      setUserTarget(15000);
+      setUserPermissions({
+        products: true,
+        stock: true,
+        sales: true,
+        financial: false,
+        reports: false,
+        customers: true,
+        settings: false,
+        canCancelSales: false,
+        canManualStockAdjust: false,
+        canViewCostAndProfit: false,
+      });
+    }
+    setShowModalPin(false);
+    setIsUserModalOpen(true);
+  };
+
+  const handleSaveUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userName.trim() || !userUsername.trim()) {
+      showToast('Nome e usuário são obrigatórios.', 'error');
+      return;
+    }
+
+    const toSave: AppUser = {
+      id: editingUser?.id || `user_${Date.now()}`,
+      name: userName.trim(),
+      username: userUsername.trim().toLowerCase(),
+      pin: userPin.trim() || undefined,
+      role: userRole,
+      active: true,
+      commissionPercent: Number(userCommission),
+      monthlySalesTarget: Number(userTarget),
+      createdAt: editingUser?.createdAt || new Date().toISOString(),
+      permissions: userRole === 'admin' ? {
+        products: true,
+        stock: true,
+        sales: true,
+        financial: true,
+        reports: true,
+        customers: true,
+        settings: true,
+        canCancelSales: true,
+        canManualStockAdjust: true,
+        canViewCostAndProfit: true,
+      } : userPermissions,
+    };
+
+    await saveUser(toSave);
+    setIsUserModalOpen(false);
+  };
+
+  const handleDeleteUserConfirm = async () => {
+    if (!userToDelete) return;
+    await deleteUser(userToDelete.id);
+    setUserToDelete(null);
+  };
+
   const handleSaveStore = async (e: React.FormEvent) => {
     e.preventDefault();
     await updateSettings({
@@ -166,8 +297,15 @@ export const SettingsView: React.FC = () => {
       includeExtraCosts,
       defaultPackagingCost: Number(defaultPackaging),
       defaultCardFeePercent: Number(defaultCardFee),
+      maxSellerDiscountPercent: Number(maxSellerDiscount),
+      requireAdminPinForCancel: requireAdminPinCancel,
+      requireAdminPinForBelowMinPrice: requireAdminPinBelowMin,
+      cashbackEnabled,
+      cashbackPercent: Number(cashbackPercent),
+      autoBackupEnabled,
+      autoBackupFrequency,
     });
-    showToast('Regras de precificação atualizadas!', 'success');
+    showToast('Regras de precificação e segurança administrativa atualizadas!', 'success');
   };
 
   const handleSaveStock = async (e: React.FormEvent) => {
@@ -909,13 +1047,106 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
 
+          {/* Advanced Security & Discount Controls */}
+          <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/70 space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-[#C99F3B]" />
+              <h4 className="font-bold text-xs uppercase tracking-wider text-[#2C241E] dark:text-[#F3EDE6]">
+                Segurança Administrativa & Limites no PDV
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-medium mb-1">
+                  Desconto Máximo do Vendedor (%) sem Autorização
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={maxSellerDiscount}
+                  onChange={(e) => setMaxSellerDiscount(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono"
+                />
+                <p className="text-[10px] text-zinc-500 mt-0.5">
+                  Descontos acima desta porcentagem solicitarão o PIN de um Administrador ou Gerente.
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={requireAdminPinCancel}
+                    onChange={(e) => setRequireAdminPinCancel(e.target.checked)}
+                    className="rounded text-amber-600"
+                  />
+                  <span>Exigir PIN de Administrador para cancelar vendas</span>
+                </label>
+
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={requireAdminPinBelowMin}
+                    onChange={(e) => setRequireAdminPinBelowMin(e.target.checked)}
+                    className="rounded text-amber-600"
+                  />
+                  <span>Exigir PIN para vender abaixo do preço de custo</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Fidelidade & Cashback */}
+          <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/70 space-y-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-500" />
+              <h4 className="font-bold text-xs uppercase tracking-wider text-[#2C241E] dark:text-[#F3EDE6]">
+                Fidelidade & Cashback aos Clientes
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="flex items-center gap-2 font-bold cursor-pointer mb-2">
+                  <input
+                    type="checkbox"
+                    checked={cashbackEnabled}
+                    onChange={(e) => setCashbackEnabled(e.target.checked)}
+                    className="rounded text-emerald-600"
+                  />
+                  <span>Ativar Programa de Cashback Automático</span>
+                </label>
+                <p className="text-[10px] text-zinc-500">
+                  Ao finalizar cada venda para um cliente cadastrado, o percentual abaixo é creditado no saldo de cashback para abater nas próximas compras.
+                </p>
+              </div>
+
+              {cashbackEnabled && (
+                <div>
+                  <label className="block font-medium mb-1">% de Cashback Concedido</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    step="0.5"
+                    value={cashbackPercent}
+                    onChange={(e) => setCashbackPercent(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono font-bold"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-end pt-3 border-t border-zinc-100 dark:border-zinc-800">
             <button
               type="submit"
               className="btn-gold !py-2.5 !px-6"
             >
               <Check className="w-4 h-4" />
-              <span>Salvar Regras de Precificação</span>
+              <span>Salvar Regras de Precificação e Segurança</span>
             </button>
           </div>
         </form>
@@ -1002,41 +1233,317 @@ export const SettingsView: React.FC = () => {
       {/* Tab: Usuários */}
       {activeTab === 'usuarios' && (
         <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xs space-y-4 text-xs">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
-                Usuários e Operadores Cadastrados
+              <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#C99F3B]" />
+                <span>Usuários, Operadores & Permissões</span>
               </h3>
               <p className="text-[11px] text-zinc-500">
-                Gerencie quem pode operar o caixa, lançar produtos e acessar relatórios financeiros.
+                Gerencie quem pode operar o caixa, conceder descontos, alterar estoque e ver relatórios.
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => handleOpenUserModal()}
+              className="btn-gold !py-2 !px-3.5 !text-xs cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Novo Operador</span>
+            </button>
           </div>
 
           <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-            {users.map((u) => (
-              <div key={u.id} className="py-3 flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                    <span>{u.name}</span>
-                    {u.id === currentUser.id && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-semibold">
-                        Sessão Ativa
+            {users.map((u) => {
+              const isRevealed = !!showPinMap[u.id];
+
+              return (
+                <div key={u.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">{u.name}</span>
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-[#A67C1E] dark:text-[#E6BE65] border border-[#C99F3B]/30">
+                        {u.role}
                       </span>
+                      {u.id === currentUser.id && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-semibold">
+                          Sessão Ativa
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-[11px] text-zinc-500">
+                      Login: <strong className="font-mono text-zinc-800 dark:text-zinc-200">{u.username}</strong>
+                      {u.commissionPercent ? ` · Comissão: ${u.commissionPercent}%` : ''}
+                      {u.monthlySalesTarget ? ` · Meta: ${formatBRL(u.monthlySalesTarget)}` : ''}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2.5">
+                    {/* Masked PIN with security toggle */}
+                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 font-mono text-[11px]">
+                      <span className="text-zinc-500 text-[10px] mr-1">PIN:</span>
+                      <span className="font-bold text-zinc-800 dark:text-zinc-200 tracking-wider">
+                        {u.pin ? (isRevealed ? u.pin : '••••') : 'Sem PIN'}
+                      </span>
+                      {u.pin && (
+                        <button
+                          type="button"
+                          onClick={() => setShowPinMap((prev) => ({ ...prev, [u.id]: !prev[u.id] }))}
+                          className="ml-1.5 p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                          title={isRevealed ? 'Ocultar PIN' : 'Visualizar PIN'}
+                        >
+                          {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenUserModal(u)}
+                      className="p-1.5 text-zinc-500 hover:text-amber-600 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      title="Editar operador e permissões"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+
+                    {users.length > 1 && u.id !== currentUser.id && (
+                      <button
+                        type="button"
+                        onClick={() => setUserToDelete(u)}
+                        className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        title="Excluir operador"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     )}
-                  </p>
-                  <p className="text-[11px] text-zinc-500">
-                    Login: <strong className="font-mono">{u.username}</strong> · Perfil: {u.role === 'admin' ? 'Administrador Total' : 'Operador de Caixa'}
-                  </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-mono font-semibold px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-                    PIN: {u.pin || 'Sem PIN'}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+
+          {/* User Add / Edit Modal */}
+          {isUserModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs">
+              <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-[#1E1916] border border-[#E8DFC8] dark:border-[#3A302A] p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                  <h3 className="font-extrabold text-sm uppercase text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-[#C99F3B]" />
+                    <span>{editingUser ? 'Editar Operador' : 'Novo Operador'}</span>
+                  </h3>
+                  <button
+                    onClick={() => setIsUserModalOpen(false)}
+                    className="p-1 text-zinc-400 hover:text-zinc-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveUserSubmit} className="space-y-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-[11px]">Nome Completo</label>
+                      <input
+                        type="text"
+                        required
+                        value={userName}
+                        onChange={(e) => setUserName(e.target.value)}
+                        placeholder="Ex: Ana Silva"
+                        className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold mb-1 text-[11px]">Usuário (Login)</label>
+                      <input
+                        type="text"
+                        required
+                        value={userUsername}
+                        onChange={(e) => setUserUsername(e.target.value)}
+                        placeholder="Ex: ana.vendas"
+                        className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-[11px]">Função / Perfil</label>
+                      <select
+                        value={userRole}
+                        onChange={(e) => setUserRole(e.target.value as UserRole)}
+                        className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-medium"
+                      >
+                        <option value="vendedor">Vendedor</option>
+                        <option value="caixa">Operador de Caixa</option>
+                        <option value="gerente">Gerente</option>
+                        <option value="admin">Administrador Geral</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold mb-1 text-[11px]">PIN de Segurança (4-6 dígitos)</label>
+                      <div className="relative">
+                        <input
+                          type={showModalPin ? 'text' : 'password'}
+                          maxLength={6}
+                          value={userPin}
+                          onChange={(e) => setUserPin(e.target.value.replace(/\D/g, ''))}
+                          placeholder="Ex: 1234"
+                          className="w-full pl-3 pr-9 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono tracking-widest font-bold"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowModalPin(!showModalPin)}
+                          className="absolute right-2.5 top-2.5 text-zinc-400 hover:text-zinc-600"
+                        >
+                          {showModalPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-[11px]">Comissão de Vendas (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={userCommission}
+                        onChange={(e) => setUserCommission(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold mb-1 text-[11px]">Meta de Vendas Mensal (R$)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="500"
+                        value={userTarget}
+                        onChange={(e) => setUserTarget(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Permissions Switcher */}
+                  {userRole !== 'admin' && (
+                    <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 space-y-2">
+                      <p className="font-bold text-[11px] uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                        Permissões de Acesso
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={userPermissions.sales}
+                            onChange={(e) => setUserPermissions({ ...userPermissions, sales: e.target.checked })}
+                          />
+                          <span>Vendas / PDV</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={userPermissions.products}
+                            onChange={(e) => setUserPermissions({ ...userPermissions, products: e.target.checked })}
+                          />
+                          <span>Produtos</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={userPermissions.stock}
+                            onChange={(e) => setUserPermissions({ ...userPermissions, stock: e.target.checked })}
+                          />
+                          <span>Estoque</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={userPermissions.customers}
+                            onChange={(e) => setUserPermissions({ ...userPermissions, customers: e.target.checked })}
+                          />
+                          <span>Clientes / CRM</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={userPermissions.financial}
+                            onChange={(e) => setUserPermissions({ ...userPermissions, financial: e.target.checked })}
+                          />
+                          <span>Financeiro / Caixa</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={userPermissions.reports}
+                            onChange={(e) => setUserPermissions({ ...userPermissions, reports: e.target.checked })}
+                          />
+                          <span>Relatórios / DRE</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={userPermissions.canCancelSales}
+                            onChange={(e) => setUserPermissions({ ...userPermissions, canCancelSales: e.target.checked })}
+                          />
+                          <span>Pode Cancelar Vendas</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={userPermissions.canManualStockAdjust}
+                            onChange={(e) => setUserPermissions({ ...userPermissions, canManualStockAdjust: e.target.checked })}
+                          />
+                          <span>Ajuste de Estoque</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsUserModalOpen(false)}
+                      className="btn-neutral !py-2 !px-4"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-gold !py-2 !px-5"
+                    >
+                      Salvar Operador
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Delete User Confirmation */}
+          <ConfirmModal
+            isOpen={!!userToDelete}
+            onClose={() => setUserToDelete(null)}
+            onConfirm={handleDeleteUserConfirm}
+            title="Excluir Usuário"
+            description={`Tem certeza que deseja excluir o operador "${userToDelete?.name}"? Ele perderá o acesso ao sistema.`}
+            confirmText="Sim, excluir"
+            variant="danger"
+          />
         </div>
       )}
 

@@ -1,16 +1,46 @@
 import React, { useState } from 'react';
-import { Database, Download, Upload, ShieldCheck, AlertTriangle, FileJson, Check } from 'lucide-react';
+import {
+  Database,
+  Download,
+  Upload,
+  ShieldCheck,
+  AlertTriangle,
+  FileJson,
+  Check,
+  Clock,
+  RotateCcw,
+  Trash2,
+  Plus,
+  RefreshCw,
+  HardDrive,
+} from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { db } from '../../db/indexedDB';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { formatDate, formatDateTime } from '../../utils/formatters';
 
 export const BackupRestoreView: React.FC = () => {
-  const { refreshData, showToast } = useApp();
+  const {
+    refreshData,
+    showToast,
+    autoBackups,
+    createAutoBackupSnapshot,
+    restoreFromAutoBackup,
+    deleteAutoBackup,
+    settings,
+    updateSettings,
+  } = useApp();
+
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
   const [backupFileContent, setBackupFileContent] = useState<string | null>(null);
   const [backupFileName, setBackupFileName] = useState('');
+  const [validationCounts, setValidationCounts] = useState<Record<string, number> | null>(null);
   const [showConfirmRestore, setShowConfirmRestore] = useState(false);
+
+  // Restore snapshot target
+  const [snapshotToRestore, setSnapshotToRestore] = useState<string | null>(null);
 
   const handleExportBackup = async () => {
     setIsExporting(true);
@@ -33,6 +63,18 @@ export const BackupRestoreView: React.FC = () => {
     }
   };
 
+  const handleCreateSnapshot = async () => {
+    setIsCreatingSnapshot(true);
+    try {
+      await createAutoBackupSnapshot('Ponto manual gerado pelo usuário');
+      showToast('Ponto de restauração criado com sucesso!', 'success');
+    } catch (err: any) {
+      showToast('Falha ao criar ponto de restauração.', 'error');
+    } finally {
+      setIsCreatingSnapshot(false);
+    }
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -42,16 +84,13 @@ export const BackupRestoreView: React.FC = () => {
     reader.onload = (event) => {
       const content = event.target?.result as string;
       if (content) {
-        try {
-          const parsed = JSON.parse(content);
-          if (parsed && parsed.data) {
-            setBackupFileContent(content);
-            setShowConfirmRestore(true);
-          } else {
-            showToast('Arquivo de backup inválido ou corrompido.', 'error');
-          }
-        } catch {
-          showToast('Formato JSON inválido no arquivo.', 'error');
+        const validation = db.validateBackup(content);
+        if (validation.valid && validation.counts) {
+          setBackupFileContent(content);
+          setValidationCounts(validation.counts);
+          setShowConfirmRestore(true);
+        } else {
+          showToast(validation.error || 'Arquivo de backup inválido ou corrompido.', 'error');
         }
       }
     };
@@ -62,7 +101,7 @@ export const BackupRestoreView: React.FC = () => {
     if (!backupFileContent) return;
     setIsImporting(true);
     try {
-      const result = await db.importBackup(backupFileContent);
+      await db.importBackup(backupFileContent);
       await refreshData();
       showToast('Backup restaurado com sucesso! Todos os dados foram atualizados.', 'success');
     } catch (err: any) {
@@ -70,20 +109,46 @@ export const BackupRestoreView: React.FC = () => {
     } finally {
       setIsImporting(false);
       setBackupFileContent(null);
+      setValidationCounts(null);
       setShowConfirmRestore(false);
     }
   };
 
+  const handleConfirmSnapshotRestore = async () => {
+    if (!snapshotToRestore) return;
+    setIsImporting(true);
+    try {
+      await restoreFromAutoBackup(snapshotToRestore);
+    } finally {
+      setIsImporting(false);
+      setSnapshotToRestore(null);
+    }
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="p-4 rounded-2xl bg-[#FFFDF9] dark:bg-[#1F1A17] border border-[#E8DFC8] dark:border-[#3A302A] shadow-2xs">
-        <h2 className="text-base sm:text-lg font-extrabold uppercase tracking-tight text-[#2C241E] dark:text-[#F3EDE6] flex items-center gap-2">
-          <span>Backup / Restauração de Dados</span>
-        </h2>
-        <p className="text-xs text-[#7E7062] dark:text-[#B5A796] mt-0.5">
-          Seus dados são 100% seus e ficam salvos no seu próprio aparelho (IndexedDB offline). Exporte cópias de segurança a qualquer momento.
-        </p>
+      <div className="p-4 sm:p-5 rounded-3xl bg-[#FFFDF9] dark:bg-[#1F1A17] border border-[#E8DFC8] dark:border-[#3A302A] shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base sm:text-lg font-extrabold uppercase tracking-tight text-[#2C241E] dark:text-[#F3EDE6] flex items-center gap-2">
+              <Database className="w-5 h-5 text-[#C99F3B]" />
+              <span>Backup / Restauração Segura</span>
+            </h2>
+            <p className="text-xs text-[#7E7062] dark:text-[#B5A796] mt-0.5">
+              Seus dados são 100% privados e salvos no seu aparelho (IndexedDB offline com suporte a snapshots periódicos).
+            </p>
+          </div>
+
+          <button
+            onClick={handleCreateSnapshot}
+            disabled={isCreatingSnapshot}
+            className="btn-silver !py-2 !px-3.5 !text-xs cursor-pointer flex items-center gap-2 self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4 text-[#C99F3B]" />
+            <span>{isCreatingSnapshot ? 'Criando ponto...' : 'Novo Ponto de Restauração'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Backup Action Cards */}
@@ -98,7 +163,7 @@ export const BackupRestoreView: React.FC = () => {
               Exportar Backup Completo
             </h3>
             <p className="text-xs text-[#7E7062] dark:text-[#B5A796] leading-relaxed">
-              Gera um arquivo <strong>.JSON</strong> seguro contendo todos os produtos, vendas, clientes, pedidos, financeiro e movimentações de estoque. Você pode salvar no seu computador, Google Drive ou pen drive.
+              Gera um arquivo <strong>.JSON</strong> seguro contendo produtos, vendas, clientes, pedidos, financeiro e movimentações de estoque.
             </p>
           </div>
 
@@ -122,7 +187,7 @@ export const BackupRestoreView: React.FC = () => {
               Restaurar Dados Anteriores
             </h3>
             <p className="text-xs text-[#7E7062] dark:text-[#B5A796] leading-relaxed">
-              Carregue um arquivo de backup previamente exportado para recuperar sua loja ou migrar para outro computador ou celular.
+              Carregue um arquivo de backup previamente exportado. O sistema valida a integridade antes de aplicar qualquer alteração.
             </p>
           </div>
 
@@ -134,30 +199,96 @@ export const BackupRestoreView: React.FC = () => {
         </div>
       </div>
 
-      {/* Security & Reliability Advice */}
-      <div className="p-5 rounded-2xl bg-[#FFFDF9] dark:bg-[#1F1A17] border border-[#E8DFC8] dark:border-[#3A302A] flex items-start gap-3 text-xs text-[#7E7062] dark:text-[#B5A796]">
-        <ShieldCheck className="w-5 h-5 text-[#C99F3B] shrink-0 mt-0.5" strokeWidth={1.75} />
-        <div className="space-y-1">
-          <h4 className="font-bold text-[#2C241E] dark:text-[#F3EDE6]">
-            Armazenamento Seguro e 100% Privado
-          </h4>
-          <p className="leading-relaxed">
-            Seus dados nunca são enviados para servidores de terceiros. Eles ficam gravados no banco de dados local do seu navegador. Recomendamos exportar um arquivo de backup semanalmente para garantir que suas informações estejam sempre guardadas em caso de troca ou limpeza do aparelho.
-          </p>
+      {/* Automatic Snapshots History */}
+      <div className="p-5 rounded-3xl bg-[#FFFDF9] dark:bg-[#1E1916] border border-[#E8DFC8] dark:border-[#3A302A] space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Clock className="w-5 h-5 text-[#C99F3B]" />
+            <div>
+              <h3 className="text-sm font-extrabold uppercase text-[#2C241E] dark:text-[#F3EDE6]">
+                Pontos de Restauração Automáticos ({autoBackups.length})
+              </h3>
+              <p className="text-xs text-[#7E7062] dark:text-[#B5A796]">
+                Gerados automaticamente no fechamento de caixa ou periodicamente.
+              </p>
+            </div>
+          </div>
         </div>
+
+        {autoBackups.length === 0 ? (
+          <div className="p-6 rounded-2xl bg-[#F8F5EE] dark:bg-[#25201C] text-center text-xs text-zinc-500">
+            Nenhum ponto de restauração gravado ainda. Clique no botão "Novo Ponto de Restauração" acima para criar o primeiro.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {autoBackups.map((snap) => (
+              <div
+                key={snap.id}
+                className="p-3.5 rounded-2xl bg-white dark:bg-[#25201C] border border-[#E8DFC8] dark:border-[#3A302A] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-[#2C241E] dark:text-[#F3EDE6]">
+                      {snap.reason}
+                    </span>
+                    <span className="badge-silver">{snap.recordsCount} registros</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                    {formatDateTime(snap.date)} · {(snap.dataSize / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSnapshotToRestore(snap.id)}
+                    className="btn-gold !py-1.5 !px-3 !text-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Restaurar</span>
+                  </button>
+                  <button
+                    onClick={() => deleteAutoBackup(snap.id)}
+                    className="p-2 text-zinc-400 hover:text-red-500 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                    title="Excluir este snapshot"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal for File Restore */}
       <ConfirmModal
         isOpen={showConfirmRestore}
         onClose={() => {
           setShowConfirmRestore(false);
           setBackupFileContent(null);
+          setValidationCounts(null);
         }}
         onConfirm={handleConfirmRestore}
         title="Restaurar Banco de Dados"
-        description={`Você selecionou o arquivo "${backupFileName}". Esta ação substituirá os registros locais pelos dados contidos no backup. Tem certeza que deseja prosseguir?`}
+        description={`O arquivo "${backupFileName}" contém: ${
+          validationCounts
+            ? Object.entries(validationCounts)
+                .map(([k, v]) => `${v} ${k}`)
+                .join(', ')
+            : 'dados válidos'
+        }. Esta ação substituirá os registros locais. Tem certeza que deseja prosseguir?`}
         confirmText="Sim, restaurar backup"
+        variant="warning"
+      />
+
+      {/* Confirmation Modal for Snapshot Restore */}
+      <ConfirmModal
+        isOpen={!!snapshotToRestore}
+        onClose={() => setSnapshotToRestore(null)}
+        onConfirm={handleConfirmSnapshotRestore}
+        title="Restaurar Ponto de Restauração"
+        description="Esta ação restaurará a base de dados para o estado deste ponto de recuperação. Tem certeza?"
+        confirmText="Sim, restaurar"
         variant="warning"
       />
     </div>

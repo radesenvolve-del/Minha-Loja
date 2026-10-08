@@ -9,7 +9,22 @@ export type QuoteStatus = 'rascunho' | 'enviado' | 'aprovado' | 'recusado' | 'ex
 export type AccountStatus = 'pendente' | 'pago' | 'recebido' | 'vencido' | 'cancelado';
 export type CashSessionStatus = 'open' | 'closed';
 export type CashMovementType = 'suprimento' | 'sangria' | 'despesa' | 'venda' | 'ajuste';
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'gerente' | 'vendedor' | 'caixa' | 'user';
+
+export interface UserPermissions {
+  products: boolean;
+  stock: boolean;
+  sales: boolean;
+  financial: boolean;
+  reports: boolean;
+  customers: boolean;
+  settings: boolean;
+  canGiveDiscountAboveMax?: boolean;
+  maxDiscountPercent?: number; // e.g. 10%
+  canCancelSales?: boolean;
+  canManualStockAdjust?: boolean;
+  canViewCostAndProfit?: boolean;
+}
 
 export interface ProductVariant {
   id: string;
@@ -85,11 +100,17 @@ export interface Customer {
   instagram?: string;
   cpf?: string;
   email?: string;
+  birthDate?: string; // YYYY-MM-DD
   address?: string;
   city?: string;
   state?: string;
   zipCode?: string;
   notes?: string;
+  cashbackBalance?: number; // Accumulated cashback in R$
+  creditBalance?: number; // Store credit in R$
+  totalPurchasesCount?: number;
+  totalSpent?: number;
+  lastPurchaseDate?: string;
   createdAt: string;
 }
 
@@ -128,6 +149,8 @@ export interface Sale {
   date: string;
   customerId?: string;
   customerName: string;
+  sellerId?: string;
+  sellerName?: string;
   items: CartItem[];
   subtotal: number;
   discountType: 'percentage' | 'fixed';
@@ -142,6 +165,10 @@ export interface Sale {
   installments?: number;
   change?: number; // troco
   amountPaid?: number;
+  cashbackEarned?: number;
+  cashbackUsed?: number;
+  creditUsed?: number;
+  adminApprovedBy?: string;
   status: 'completed' | 'cancelled';
   notes?: string;
   cancelledAt?: string;
@@ -311,15 +338,10 @@ export interface AppUser {
   username: string;
   pin?: string;
   role: UserRole;
-  permissions: {
-    products: boolean;
-    stock: boolean;
-    sales: boolean;
-    financial: boolean;
-    reports: boolean;
-    customers: boolean;
-    settings: boolean;
-  };
+  active?: boolean;
+  commissionPercent?: number; // e.g. 5%
+  monthlySalesTarget?: number; // e.g. 15000 in R$
+  permissions: UserPermissions;
   createdAt: string;
 }
 
@@ -351,6 +373,55 @@ export interface StoreSettings {
   primaryColor: string; // hex
   setupCompleted: boolean;
   mainSalesChannel?: 'instagram' | 'whatsapp' | 'loja_fisica' | 'online' | 'todas';
+  // Advanced features
+  cashbackEnabled?: boolean;
+  cashbackPercent?: number; // e.g. 3%
+  maxSellerDiscountPercent?: number; // e.g. 10% - above this requires admin pin
+  requireAdminPinForCancel?: boolean;
+  requireAdminPinForBelowMinPrice?: boolean;
+  autoBackupEnabled?: boolean;
+  autoBackupFrequency?: 'daily' | 'on_cash_close' | 'weekly';
+  lastAutoBackupAt?: string;
+  p2pSyncDeviceName?: string;
+}
+
+export interface AutoBackupRecord {
+  id: string;
+  date: string;
+  reason: string;
+  dataSize: number;
+  recordsCount: number;
+  jsonBackup: string;
+}
+
+export interface Promotion {
+  id: string;
+  name: string;
+  discountPercent: number;
+  startDate: string;
+  endDate: string;
+  productIds: string[];
+  active: boolean;
+  createdAt: string;
+}
+
+export interface ReturnItemRecord {
+  id: string;
+  saleId: string;
+  saleNumber: string;
+  date: string;
+  customerId?: string;
+  customerName: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  totalRefund: number;
+  refundMethod: 'credito_cliente' | 'estorno_dinheiro' | 'estorno_pix' | 'troca_produto';
+  reason: string;
+  userName: string;
+  createdAt: string;
 }
 
 export type ActiveTab =
@@ -369,5 +440,9 @@ export type ActiveTab =
   | 'reports'
   | 'labels'
   | 'catalog'
+  | 'crm'
+  | 'promotions'
+  | 'sync'
+  | 'audit'
   | 'settings'
   | 'backup';
