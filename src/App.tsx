@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import { MenuDrawer } from './components/layout/MenuDrawer';
@@ -238,139 +239,154 @@ const MainApp: React.FC = () => {
               customCategories={customCategories}
             />
           </div>
-          {activeTab === 'dashboard' && (
-            <DashboardOverview
-              onOpenProductModal={() => {
-                setEditingProduct(null);
-                setIsDuplicateProduct(false);
-                setIsProductModalOpen(true);
+          {/* Fluid Native App Page Transition with Framer Motion */}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 12, filter: 'blur(3px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -10, filter: 'blur(2px)' }}
+              transition={{
+                duration: 0.22,
+                ease: [0.16, 1, 0.3, 1],
               }}
-              onOpenStockMovementModal={() => {
-                setTargetStockProduct(null);
-                setIsStockMovementModalOpen(true);
-              }}
-              onOpenCustomerModal={() => {
-                setEditingCustomer(null);
-                setIsCustomerModalOpen(true);
-              }}
-              onOpenOrderModal={() => {
-                setEditingOrder(null);
-                setIsOrderModalOpen(true);
-              }}
-              onOpenCardGenerator={() => {
-                setSelectedCardProduct(null);
-                setIsCardModalOpen(true);
-              }}
-            />
-          )}
+              className="w-full will-change-transform focus:outline-hidden"
+            >
+              {activeTab === 'dashboard' && (
+                <DashboardOverview
+                  onOpenProductModal={() => {
+                    setEditingProduct(null);
+                    setIsDuplicateProduct(false);
+                    setIsProductModalOpen(true);
+                  }}
+                  onOpenStockMovementModal={() => {
+                    setTargetStockProduct(null);
+                    setIsStockMovementModalOpen(true);
+                  }}
+                  onOpenCustomerModal={() => {
+                    setEditingCustomer(null);
+                    setIsCustomerModalOpen(true);
+                  }}
+                  onOpenOrderModal={() => {
+                    setEditingOrder(null);
+                    setIsOrderModalOpen(true);
+                  }}
+                  onOpenCardGenerator={() => {
+                    setSelectedCardProduct(null);
+                    setIsCardModalOpen(true);
+                  }}
+                />
+              )}
 
-          {activeTab === 'products' && (
-            <ProductList
-              onOpenCreate={() => {
-                setEditingProduct(null);
-                setIsDuplicateProduct(false);
-                setIsProductModalOpen(true);
-              }}
-              onOpenEdit={(product) => {
-                setEditingProduct(product);
-                setIsDuplicateProduct(false);
-                setIsProductModalOpen(true);
-              }}
-              onOpenDuplicate={(product) => {
-                setEditingProduct(product);
-                setIsDuplicateProduct(true);
-                setIsProductModalOpen(true);
-              }}
-              onOpenBarcode={(product) => {
-                setSelectedProductForBarcode(product);
-              }}
-              onOpenImportCSV={() => setIsCSVImportOpen(true)}
-              onOpenQuickStock={(product) => {
-                setTargetStockProduct(product);
-                setIsStockMovementModalOpen(true);
-              }}
-              onOpenCardGenerator={(product) => {
-                setSelectedCardProduct(product || null);
-                setIsCardModalOpen(true);
-              }}
-            />
-          )}
+              {activeTab === 'products' && (
+                <ProductList
+                  onOpenCreate={() => {
+                    setEditingProduct(null);
+                    setIsDuplicateProduct(false);
+                    setIsProductModalOpen(true);
+                  }}
+                  onOpenEdit={(product) => {
+                    setEditingProduct(product);
+                    setIsDuplicateProduct(false);
+                    setIsProductModalOpen(true);
+                  }}
+                  onOpenDuplicate={(product) => {
+                    setEditingProduct(product);
+                    setIsDuplicateProduct(true);
+                    setIsProductModalOpen(true);
+                  }}
+                  onOpenBarcode={(product) => {
+                    setSelectedProductForBarcode(product);
+                  }}
+                  onOpenImportCSV={() => setIsCSVImportOpen(true)}
+                  onOpenQuickStock={(product) => {
+                    setTargetStockProduct(product);
+                    setIsStockMovementModalOpen(true);
+                  }}
+                  onOpenCardGenerator={(product) => {
+                    setSelectedCardProduct(product || null);
+                    setIsCardModalOpen(true);
+                  }}
+                />
+              )}
 
-          {activeTab === 'stock' && (
-            <StockList
-              onOpenMovementModal={(product) => {
-                setTargetStockProduct(product || null);
-                setIsStockMovementModalOpen(true);
-              }}
-              onOpenNewProduct={() => {
-                setEditingProduct(null);
-                setIsDuplicateProduct(false);
-                setIsProductModalOpen(true);
-              }}
-            />
-          )}
+              {activeTab === 'stock' && (
+                <StockList
+                  onOpenMovementModal={(product) => {
+                    setTargetStockProduct(product || null);
+                    setIsStockMovementModalOpen(true);
+                  }}
+                  onOpenNewProduct={() => {
+                    setEditingProduct(null);
+                    setIsDuplicateProduct(false);
+                    setIsProductModalOpen(true);
+                  }}
+                />
+              )}
 
-          {activeTab === 'pdv' && (
-            <div className="space-y-4">
-              <CashRegisterView />
-            </div>
-          )}
+              {activeTab === 'pdv' && (
+                <div className="space-y-4">
+                  <CashRegisterView />
+                </div>
+              )}
 
-          {activeTab === 'sales' && <SalesHistory />}
+              {activeTab === 'sales' && <SalesHistory />}
 
-          {activeTab === 'orders' && (
-            <OrderKanban
-              onOpenCreate={() => {
-                setEditingOrder(null);
-                setIsOrderModalOpen(true);
-              }}
-              onOpenEdit={(order) => {
-                setEditingOrder(order);
-                setIsOrderModalOpen(true);
-              }}
-            />
-          )}
+              {activeTab === 'orders' && (
+                <OrderKanban
+                  onOpenCreate={() => {
+                    setEditingOrder(null);
+                    setIsOrderModalOpen(true);
+                  }}
+                  onOpenEdit={(order) => {
+                    setEditingOrder(order);
+                    setIsOrderModalOpen(true);
+                  }}
+                />
+              )}
 
-          {activeTab === 'customers' && (
-            <CustomerList
-              onOpenCreate={() => {
-                setEditingCustomer(null);
-                setIsCustomerModalOpen(true);
-              }}
-              onOpenEdit={(customer) => {
-                setEditingCustomer(customer);
-                setIsCustomerModalOpen(true);
-              }}
-            />
-          )}
+              {activeTab === 'customers' && (
+                <CustomerList
+                  onOpenCreate={() => {
+                    setEditingCustomer(null);
+                    setIsCustomerModalOpen(true);
+                  }}
+                  onOpenEdit={(customer) => {
+                    setEditingCustomer(customer);
+                    setIsCustomerModalOpen(true);
+                  }}
+                />
+              )}
 
-          {activeTab === 'suppliers' && <SupplierList />}
+              {activeTab === 'suppliers' && <SupplierList />}
 
-          {activeTab === 'purchases' && <PurchasesList />}
+              {activeTab === 'purchases' && <PurchasesList />}
 
-          {activeTab === 'quotes' && <QuotesList />}
+              {activeTab === 'quotes' && <QuotesList />}
 
-          {activeTab === 'cash' && <CashRegisterView />}
+              {activeTab === 'cash' && <CashRegisterView />}
 
-          {activeTab === 'financial' && <FinancialOverview />}
+              {activeTab === 'financial' && <FinancialOverview />}
 
-          {activeTab === 'reports' && <ReportsView />}
+              {activeTab === 'reports' && <ReportsView />}
 
-          {activeTab === 'labels' && <BatchLabelsPrintView />}
+              {activeTab === 'labels' && <BatchLabelsPrintView />}
 
-          {activeTab === 'catalog' && <DigitalCatalogView />}
+              {activeTab === 'catalog' && <DigitalCatalogView />}
 
-          {activeTab === 'crm' && <CrmLoyaltyView />}
+              {activeTab === 'crm' && <CrmLoyaltyView />}
 
-          {activeTab === 'promotions' && <PromotionsView />}
+              {activeTab === 'promotions' && <PromotionsView />}
 
-          {activeTab === 'sync' && <DeviceSyncView />}
+              {activeTab === 'sync' && <DeviceSyncView />}
 
-          {activeTab === 'audit' && <AuditLogsView />}
+              {activeTab === 'audit' && <AuditLogsView />}
 
-          {activeTab === 'settings' && <SettingsView />}
+              {activeTab === 'settings' && <SettingsView />}
 
-          {activeTab === 'backup' && <BackupRestoreView />}
+              {activeTab === 'backup' && <BackupRestoreView />}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
@@ -479,7 +495,8 @@ function checkIsPublicCatalogMode(): boolean {
   );
 }
 
-export default function App() {
+// Dedicated public catalog router component inside AppProvider
+const AppContent: React.FC = () => {
   const [isPublicCatalog, setIsPublicCatalog] = useState(checkIsPublicCatalogMode);
 
   useEffect(() => {
@@ -497,17 +514,21 @@ export default function App() {
   // Dedicated, Public Customer Catalog View (completely separated from internal admin)
   if (isPublicCatalog) {
     return (
-      <AppProvider>
+      <>
         <PublicCatalogView />
         <ToastContainer />
-      </AppProvider>
+      </>
     );
   }
 
   // Internal Management System (PDV, Stock, Financial, Settings)
+  return <MainApp />;
+};
+
+export default function App() {
   return (
     <AppProvider>
-      <MainApp />
+      <AppContent />
     </AppProvider>
   );
 }

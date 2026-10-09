@@ -21,6 +21,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { ActiveTab } from '../../types';
 import { UserSessionModal } from '../common/UserSessionModal';
+import { GlobalThemeSelector } from '../common/GlobalThemeSelector';
 
 interface HeaderProps {
   onOpenMenuDrawer: () => void;
@@ -183,15 +184,8 @@ export const Header: React.FC<HeaderProps> = ({
             <Camera className="w-4 h-4 text-[#C99F3B]" strokeWidth={1.75} />
           </button>
 
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="btn-silver !p-2.5 min-w-[42px] min-h-[42px] flex items-center justify-center !text-xs cursor-pointer rounded-xl shadow-2xs"
-            title={settings.theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
-            aria-label="Alternar tema claro/escuro"
-          >
-            {settings.theme === 'dark' ? <Sun className="w-4 h-4 text-[#E6BE65]" strokeWidth={1.75} /> : <Moon className="w-4 h-4 text-[#556070]" strokeWidth={1.75} />}
-          </button>
+          {/* Botão de Tema Claro / Escuro (Apenas o botão com o ícone) */}
+          <GlobalThemeSelector variant="icon" />
 
           {/* Current Operator / User Session Badge */}
           <div className="flex items-center">

@@ -181,10 +181,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Collections state - Synchronous cache prevents blank catalog flashes
   const [products, setProducts] = useState<Product[]>(() => {
     try {
+      const isCleared = localStorage.getItem('minha_loja_cleared') === 'true';
+      if (isCleared) return [];
       const saved = localStorage.getItem('minha_loja_products_cache');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return sampleProducts;
@@ -292,10 +294,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser(initialUsers[0]);
       }
 
+      const isCleared = typeof localStorage !== 'undefined' && localStorage.getItem('minha_loja_cleared') === 'true';
       if (loadedProducts.length > 0) {
         setProducts(loadedProducts);
         try {
           localStorage.setItem('minha_loja_products_cache', JSON.stringify(loadedProducts));
+        } catch {}
+      } else if (isCleared) {
+        // Zero/reset intentional state: products remain empty and examples are deleted
+        setProducts([]);
+        try {
+          localStorage.setItem('minha_loja_products_cache', '[]');
         } catch {}
       } else {
         await db.putMany('products', sampleProducts);
@@ -329,19 +338,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   }, [refreshData]);
 
-  // Apply theme class to <html>
+  // Apply theme class to <html> and set system colorScheme
   useEffect(() => {
     const root = document.documentElement;
     if (settings.theme === 'dark') {
       root.classList.add('dark');
+      root.style.colorScheme = 'dark';
     } else if (settings.theme === 'light') {
       root.classList.remove('dark');
+      root.style.colorScheme = 'light';
     } else {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (prefersDark) {
         root.classList.add('dark');
+        root.style.colorScheme = 'dark';
       } else {
         root.classList.remove('dark');
+        root.style.colorScheme = 'light';
       }
     }
   }, [settings.theme]);
@@ -472,6 +485,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: now,
       } as StockMovement);
     }
+
+    try {
+      localStorage.removeItem('minha_loja_cleared');
+    } catch {}
 
     await db.put('products', productToSave);
     await db.logAudit(
@@ -1490,20 +1507,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Demo / Clear
   const loadDemoData = async () => {
+    try {
+      localStorage.removeItem('minha_loja_cleared');
+    } catch {}
     await db.seedDemoData();
     await refreshData();
     showToast('Dados de demonstração carregados com sucesso!', 'success');
   };
 
   const clearAllData = async () => {
+    try {
+      localStorage.setItem('minha_loja_cleared', 'true');
+      localStorage.setItem('minha_loja_products_cache', '[]');
+      localStorage.removeItem('public_catalog_customer');
+      localStorage.removeItem('minha_loja_cart');
+    } catch {}
+
     await db.clearAll();
     await db.saveSettings({
       ...initialSettings,
       setupCompleted: false,
     });
     await db.putMany('users', initialUsers);
+
+    // Instant local state reset to avoid stale render
+    setProducts([]);
+    setCustomers([]);
+    setSuppliers([]);
+    setSales([]);
+    setOrders([]);
+    setQuotes([]);
+    setStockMovements([]);
+    setCashSessions([]);
+    setCashMovements([]);
+    setAccountsPayable([]);
+    setAccountsReceivable([]);
+    setPurchases([]);
+    setAuditLogs([]);
+    setPromotions([]);
+    setAutoBackups([]);
+
+    try {
+      window.dispatchEvent(new StorageEvent('storage', { key: 'minha_loja_products_cache', newValue: '[]' }));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'minha_loja_cleared', newValue: 'true' }));
+    } catch {}
+
     await refreshData();
-    showToast('Todos os dados foram resetados.', 'info');
+    showToast('Todos os dados da loja e exemplos do catálogo foram apagados.', 'info');
   };
 
   return (

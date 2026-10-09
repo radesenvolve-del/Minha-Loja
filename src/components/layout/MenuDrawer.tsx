@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ActiveTab } from '../../types';
+import { GlobalThemeSelector } from '../common/GlobalThemeSelector';
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -423,15 +424,7 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={() =>
-              updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })
-            }
-            className="btn-silver !p-2 min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer"
-            title="Alternar tema claro/escuro"
-          >
-            {settings.theme === 'dark' ? <Sun className="w-4 h-4 text-[#E6BE65]" strokeWidth={1.75} /> : <Moon className="w-4 h-4 text-[#556070]" strokeWidth={1.75} />}
-          </button>
+          <GlobalThemeSelector variant="icon" />
         </div>
       </div>
     </div>

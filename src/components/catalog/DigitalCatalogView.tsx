@@ -19,6 +19,8 @@ import {
   ShieldCheck,
   UserCheck,
   Lock,
+  BookOpen,
+  Package,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Product } from '../../types';
@@ -31,7 +33,7 @@ import { InstagramCardGeneratorModal } from './InstagramCardGeneratorModal';
 import { JewelryCategoryGraphic } from '../common/JewelryCategoryGraphic';
 
 export const DigitalCatalogView: React.FC = () => {
-  const { products, settings, saveOrder, showToast, selectedCategory, setSelectedCategory } = useApp();
+  const { products, settings, saveOrder, showToast, selectedCategory, setSelectedCategory, setActiveTab } = useApp();
   const [search, setSearch] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
   const [catalogQrUrl, setCatalogQrUrl] = useState('');
@@ -94,7 +96,16 @@ export const DigitalCatalogView: React.FC = () => {
   };
 
   const handleOpenAsCustomer = () => {
-    window.open(getPublicCatalogUrl(), '_blank');
+    // Navigate instantly in the current window to preview as customer
+    window.location.hash = '#catalogo';
+  };
+
+  const handleOpenInNewTab = () => {
+    try {
+      window.open(getPublicCatalogUrl(), '_blank');
+    } catch {
+      window.location.hash = '#catalogo';
+    }
   };
 
   const handleOpenCard = (product?: Product | null) => {
@@ -220,9 +231,18 @@ export const DigitalCatalogView: React.FC = () => {
             <button
               onClick={handleOpenAsCustomer}
               className="flex-1 sm:flex-none btn-gold !py-2 !px-3.5 !text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              title="Acessa a vitrine pública diretamente no navegador sem bloqueio de popups"
+            >
+              <Eye className="w-3.5 h-3.5 text-[#1A1306]" />
+              <span>Ver como Cliente</span>
+            </button>
+            <button
+              onClick={handleOpenInNewTab}
+              className="flex-1 sm:flex-none btn-silver !py-2 !px-3 !text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              title="Abre o link público do catálogo em uma nova aba"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>Abrir como Cliente</span>
+              <span>Nova Aba</span>
             </button>
             <button
               onClick={handleOpenShare}
@@ -346,8 +366,44 @@ export const DigitalCatalogView: React.FC = () => {
         </div>
       </div>
 
-      {/* Catalog Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {/* Catalog Grid or Empty State */}
+      {displayProducts.length === 0 ? (
+        <div className="text-center py-16 px-6 bg-[#FFFDF9] dark:bg-[#1F1A17] rounded-3xl border border-[#E8DFC8] dark:border-[#3A302A] max-w-lg mx-auto shadow-2xs space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center text-[#C99F3B]">
+            <BookOpen className="w-7 h-7" strokeWidth={1.5} />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-serif-luxury text-2xl text-[#2C241E] dark:text-[#F3EDE6]">
+              {products.length === 0 ? 'Nenhum Produto no Catálogo' : 'Nenhuma Peça Encontrada'}
+            </h3>
+            <p className="text-xs text-[#7E7062] dark:text-[#B5A796] max-w-sm mx-auto leading-relaxed">
+              {products.length === 0
+                ? 'Todos os dados da loja foram zerados. Cadastre novos produtos na aba Produtos ou carregue a demonstração nas Configurações.'
+                : 'Não encontramos itens correspondentes à sua pesquisa ou filtros de categoria.'}
+            </p>
+          </div>
+          {products.length === 0 ? (
+            <button
+              onClick={() => setActiveTab('products')}
+              className="btn-gold !py-2 !px-4 !text-xs cursor-pointer inline-flex items-center gap-1.5"
+            >
+              <Package className="w-4 h-4" />
+              <span>+ Cadastrar Produto</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setSearch('');
+                setSelectedCategory('all');
+              }}
+              className="btn-gold !py-2 !px-4 !text-xs cursor-pointer"
+            >
+              Ver Todas as Peças
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {displayProducts.map((p) => {
           const { price: effectivePrice, isPromo } = getEffectiveProductPrice(p);
           const isSelected = !!customerBag[p.id];
@@ -482,6 +538,7 @@ export const DigitalCatalogView: React.FC = () => {
           );
         })}
       </div>
+      )}
 
       {/* Share Modal */}
       <Modal isOpen={showShareModal} onClose={() => setShowShareModal(false)} title="QR Code & Link do Catálogo Público" maxWidth="sm">

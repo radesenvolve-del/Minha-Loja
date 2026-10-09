@@ -38,6 +38,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { MarkupMethod, RoundingMethod, AppUser, UserRole, UserPermissions } from '../../types';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { GlobalThemeSelector } from '../common/GlobalThemeSelector';
 import { formatBRL } from '../../utils/formatters';
 import sampleBoutiqueLogo from '../../assets/images/minha_loja_logo_1791030644359.jpg';
 
@@ -719,6 +720,22 @@ export const SettingsView: React.FC = () => {
       {/* Tab: Minha Loja (With integrated Chave PIX card) */}
       {activeTab === 'loja' && (
         <form onSubmit={handleSaveStore} className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xs space-y-5 text-xs">
+          {/* Global Theme Selector Card */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-850/80 border border-zinc-200 dark:border-zinc-750 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#C99F3B]" />
+                  <span>Tema Visual (Claro / Escuro)</span>
+                </h4>
+                <p className="text-[11px] text-zinc-500">
+                  Alterne a experiência visual do sistema e catálogo entre Claro e Escuro.
+                </p>
+              </div>
+              <GlobalThemeSelector variant="segmented" />
+            </div>
+          </div>
+
           {/* Store Logo Upload Card */}
           <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-850/80 border border-zinc-200 dark:border-zinc-750 space-y-3">
             <div className="flex items-center justify-between">
